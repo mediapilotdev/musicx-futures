@@ -1,88 +1,98 @@
 import { db } from './db.js';
 import { nanoid } from 'nanoid';
 
-console.log('🌱 Seeding MusicX database with SOL-denominated listener futures markets...');
+console.log('🌱 Seeding MusicX with high-velocity 24H settlement and drop markets...');
 
-const artists = [
+const markets = [
   {
-    id: 'art_chappell',
-    name: 'Chappell Roan',
-    spotify_id: '7GlBOeep6PqTfFi59PTJ60',
-    image_url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=600&q=80',
-    genre: 'Pop / Synthpop',
-    current_listeners: 43250000,
-    prev_listeners: 38400000,
-    target_listeners: 46000000,
-    yes_pool_sol: 18.5,
-    no_pool_sol: 12.2
+    id: 'mkt_karol_no1',
+    title: 'Will "BbY WOW" stay #1 on Spotify Daily Global tomorrow?',
+    category: 'DAILY_CHARTS',
+    subtitle: 'Spotify Daily Top 50 Global (Oct 7 refresh at 10 AM UTC)',
+    image_url: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?auto=format&fit=crop&w=600&q=80',
+    settlement_date: 'Oct 7, 2026 (24h)',
+    resolution_source: 'charts.spotify.com/charts/view/regional-global-daily/latest',
+    yes_price: 0.68,
+    no_price: 0.32,
+    yes_pool_sol: 42.5,
+    no_pool_sol: 20.0,
+    volume_sol: 62.5
   },
   {
-    id: 'art_billie',
-    name: 'Billie Eilish',
-    spotify_id: '6qqNVTkY8uBg9cP3Jd7DAH',
+    id: 'mkt_taylor_top5',
+    title: 'Will Taylor Swift have 3+ tracks in Spotify Global Top 5 tomorrow?',
+    category: 'DAILY_CHARTS',
+    subtitle: 'The Life of a Showgirl deluxe track holdout test',
     image_url: 'https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?auto=format&fit=crop&w=600&q=80',
-    genre: 'Alt Pop',
-    current_listeners: 104500000,
-    prev_listeners: 99800000,
-    target_listeners: 107000000,
-    yes_pool_sol: 45.0,
-    no_pool_sol: 26.5
+    settlement_date: 'Oct 7, 2026 (24h)',
+    resolution_source: 'charts.spotify.com Global Top 50 Daily',
+    yes_price: 0.54,
+    no_price: 0.46,
+    yes_pool_sol: 58.2,
+    no_pool_sol: 49.5,
+    volume_sol: 107.7
   },
   {
-    id: 'art_diljit',
-    name: 'Diljit Dosanjh',
-    spotify_id: '2FKWNmUpLFXIRdgBhUikHm',
-    image_url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80',
-    genre: 'Punjabi / Global Pop',
-    current_listeners: 24800000,
-    prev_listeners: 22100000,
-    target_listeners: 27000000,
-    yes_pool_sol: 22.4,
-    no_pool_sol: 17.6
-  },
-  {
-    id: 'art_travis',
-    name: 'Travis Scott',
-    spotify_id: '0Y5tJX1MQlPlqiwlOH1tJY',
+    id: 'mkt_drake_fomo_debut',
+    title: 'Will Drake\'s "Habibti (FOMO)" debut at #1 on Spotify USA Daily?',
+    category: 'NEW_RELEASES',
+    subtitle: 'First 24-hour debut tracking for surprise EP drop',
     image_url: 'https://images.unsplash.com/photo-1501386761578-eac5c94b800a?auto=format&fit=crop&w=600&q=80',
-    genre: 'Hip Hop / Trap',
-    current_listeners: 71200000,
-    prev_listeners: 73500000,
-    target_listeners: 72000000,
-    yes_pool_sol: 14.8,
-    no_pool_sol: 31.2
+    settlement_date: 'Oct 8, 2026 (48h)',
+    resolution_source: 'Spotify USA Daily Top 50 Chart',
+    yes_price: 0.41,
+    no_price: 0.59,
+    yes_pool_sol: 38.0,
+    no_pool_sol: 54.7,
+    volume_sol: 92.7
   },
   {
-    id: 'art_benson',
-    name: 'Benson Boone',
-    spotify_id: '22wSO2vIJ7ncnrQMrrzC7v',
+    id: 'mkt_battle_billie_olivia',
+    title: 'CHART DUEL: Billie Eilish vs Olivia Rodrigo on Global Daily?',
+    category: 'BATTLES',
+    subtitle: 'Who ranks higher on Spotify Global: Billie ("LUNCH") or Olivia ("the cure")?',
     image_url: 'https://images.unsplash.com/photo-1470225620780-dba8ba36b745?auto=format&fit=crop&w=600&q=80',
-    genre: 'Pop Rock',
-    current_listeners: 58900000,
-    prev_listeners: 61400000,
-    target_listeners: 60000000,
-    yes_pool_sol: 16.0,
-    no_pool_sol: 24.5
+    settlement_date: 'Oct 7, 2026 (24h)',
+    resolution_source: 'Spotify Daily Global Top 200 comparative rank',
+    yes_price: 0.62, // YES means Billie wins, NO means Olivia wins
+    no_price: 0.38,
+    yes_pool_sol: 64.0,
+    no_pool_sol: 39.2,
+    volume_sol: 103.2
   },
   {
-    id: 'art_indie',
-    name: 'The Marías',
-    spotify_id: '2sSGPbdZJkaSE2Abc9AC4f',
-    image_url: 'https://images.unsplash.com/photo-1465847899084-d164df4dedc6?auto=format&fit=crop&w=600&q=80',
-    genre: 'Indie Pop / Psychedelic',
-    current_listeners: 18400000,
-    prev_listeners: 16900000,
-    target_listeners: 20000000,
-    yes_pool_sol: 35.8,
-    no_pool_sol: 11.2
+    id: 'mkt_victoria_monet_debut',
+    title: 'Will Victoria Monét\'s "Frequency of Love" debut in Global Top 50?',
+    category: 'NEW_RELEASES',
+    subtitle: 'New Music Friday R&B single 48h streaming threshold',
+    image_url: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=600&q=80',
+    settlement_date: 'Oct 8, 2026 (48h)',
+    resolution_source: 'Spotify Global Top 50 Chart',
+    yes_price: 0.28,
+    no_price: 0.72,
+    yes_pool_sol: 14.5,
+    no_pool_sol: 37.3,
+    volume_sol: 51.8
+  },
+  {
+    id: 'mkt_chappell_mariah',
+    title: 'Will any Christmas song enter the Spotify Global Top 100 this week?',
+    category: 'VIRAL',
+    subtitle: 'Early holiday streaming surge tracker (Mariah Carey / Bleachers)',
+    image_url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?auto=format&fit=crop&w=600&q=80',
+    settlement_date: 'Oct 11, 2026 (5 days)',
+    resolution_source: 'Spotify Global Daily Top 100 Chart',
+    yes_price: 0.35,
+    no_price: 0.65,
+    yes_pool_sol: 21.0,
+    no_pool_sol: 39.0,
+    volume_sol: 60.0
   }
 ];
 
-// Clean existing
 db.exec(`
   DELETE FROM positions;
   DELETE FROM markets;
-  DELETE FROM artists;
   DELETE FROM users;
 `);
 
@@ -93,45 +103,47 @@ const insertUser = db.prepare(`
 
 insertUser.run('usr_demo', 'arun_demo', '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy', 1000.0, 5.0);
 
-const insertArtist = db.prepare(`
-  INSERT INTO artists (id, name, spotify_id, image_url, genre, current_listeners, prev_listeners)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-`);
-
 const insertMarket = db.prepare(`
-  INSERT INTO markets (id, artist_id, target_date, target_listeners, status, yes_pool_sol, no_pool_sol)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
+  INSERT INTO markets (
+    id, title, category, subtitle, image_url, settlement_date, resolution_source,
+    yes_price, no_price, yes_pool_sol, no_pool_sol, volume_sol
+  )
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
-const insertPosition = db.prepare(`
-  INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, tx_signature)
-  VALUES (?, ?, ?, ?, ?, ?, ?)
-`);
-
-for (const a of artists) {
-  insertArtist.run(a.id, a.name, a.spotify_id, a.image_url, a.genre, a.current_listeners, a.prev_listeners);
-  const marketId = `mkt_${a.id.replace('art_', '')}_nov`;
+for (const m of markets) {
   insertMarket.run(
-    marketId,
-    a.id,
-    '2026-11-01',
-    a.target_listeners,
-    'OPEN',
-    a.yes_pool_sol,
-    a.no_pool_sol
+    m.id,
+    m.title,
+    m.category,
+    m.subtitle,
+    m.image_url,
+    m.settlement_date,
+    m.resolution_source,
+    m.yes_price,
+    m.no_price,
+    m.yes_pool_sol,
+    m.no_pool_sol,
+    m.volume_sol
   );
-
-  if (a.id === 'art_chappell') {
-    insertPosition.run(
-      nanoid(10),
-      'usr_demo',
-      '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy',
-      marketId,
-      'YES',
-      0.5,
-      '5UfDuVvX8z9...demoTx'
-    );
-  }
 }
 
-console.log('✅ Seed completed with 6 SOL artist futures markets!');
+// Add sample position
+const insertPosition = db.prepare(`
+  INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, shares, avg_price, tx_signature)
+  VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+insertPosition.run(
+  nanoid(10),
+  'usr_demo',
+  '3J98t1WpEZ73CNmQviecrnyiWrnqRhWNLy',
+  'mkt_karol_no1',
+  'YES',
+  0.5,
+  0.73,
+  0.68,
+  '5UfDuVvX8z9...demoTx'
+);
+
+console.log('✅ Seed completed with 6 high-frequency 24H music prediction markets!');
