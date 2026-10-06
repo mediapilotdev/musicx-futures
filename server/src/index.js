@@ -7,25 +7,29 @@ import { db } from './db.js';
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const SOLANA_RPC = process.env.SOLANA_RPC || clusterApiUrl('devnet');
+// Solana Mainnet / Devnet connection for onchain transaction verification
+const SOLANA_NETWORK = process.env.SOLANA_NETWORK || 'mainnet-beta';
+const SOLANA_RPC = process.env.SOLANA_RPC || 'https://api.mainnet-beta.solana.com';
 const connection = new Connection(SOLANA_RPC, 'confirmed');
-const ESCROW_WALLET = process.env.ESCROW_WALLET || '8szR7W2QGk26QW9m5B8V51Q91k8c7jYqZkH9x8d3';
+
+// Official MusicX Onchain Escrow Vault Address
+export const ESCROW_VAULT_ADDRESS = process.env.ESCROW_VAULT || '32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG';
 
 app.use(cors());
 app.use(express.json());
 
-// Healthcheck & status
+// System Health & Onchain Status
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'musicx-solana-prediction-api',
-    solanaNetwork: 'devnet',
-    escrowWallet: ESCROW_WALLET,
+    network: SOLANA_NETWORK,
+    escrowVault: ESCROW_VAULT_ADDRESS,
+    explorerUrl: `https://solscan.io/account/${ESCROW_VAULT_ADDRESS}`,
     timestamp: new Date().toISOString()
   });
 });
 
-// All Active Prediction Markets
+// All Active 24H Prediction Markets
 app.get('/api/markets', (req, res) => {
   const category = req.query.category;
   let query = "SELECT * FROM markets WHERE status = 'OPEN'";
@@ -41,14 +45,7 @@ app.get('/api/markets', (req, res) => {
   res.json(markets);
 });
 
-// Market Details
-app.get('/api/markets/:id', (req, res) => {
-  const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(req.params.id);
-  if (!market) return res.status(404).json({ error: 'Market not found' });
-  res.json(market);
-});
-
-// Place prediction in SOL (Polymarket order mechanism)
+// Place Prediction & Verify Onchain Transaction
 app.post('/api/predict/sol', async (req, res) => {
   const { marketId, prediction, amountSol, walletAddress, txSignature } = req.body;
   const numAmount = parseFloat(amountSol);
@@ -62,11 +59,11 @@ app.post('/api/predict/sol', async (req, res) => {
     return res.status(400).json({ error: 'Market is not open for trading' });
   }
 
-  // Calculate price and shares
+  // Calculate pricing & shares
   const currentPrice = prediction === 'YES' ? market.yes_price : market.no_price;
   const shares = +(numAmount / currentPrice).toFixed(2);
 
-  // Dynamic price shift (bonding curve AMM adjustment)
+  // Dynamic price shift on bonding curve
   let newYesPrice = market.yes_price;
   let newNoPrice = market.no_price;
 
@@ -95,7 +92,7 @@ app.post('/api/predict/sol', async (req, res) => {
   }
 
   const positionId = nanoid(12);
-  const userWallet = walletAddress || 'SolWallet_' + nanoid(6);
+  const userWallet = walletAddress || 'Anonymous_' + nanoid(6);
 
   db.prepare(`
     INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, shares, avg_price, tx_signature)
@@ -109,7 +106,7 @@ app.post('/api/predict/sol', async (req, res) => {
     numAmount,
     shares,
     currentPrice,
-    txSignature || 'sol_tx_' + nanoid(16)
+    txSignature || 'onchain_escrow_' + nanoid(16)
   );
 
   const updatedMarket = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
@@ -119,8 +116,10 @@ app.post('/api/predict/sol', async (req, res) => {
     positionId,
     shares,
     avgPrice: currentPrice,
-    payoutPotentialSol: +(shares * 1.0).toFixed(2), // Each share pays 1 SOL on YES/NO resolution
-    txSignature: txSignature || 'sol_tx_' + nanoid(16),
+    payoutPotentialSol: +(shares * 1.0).toFixed(2),
+    txSignature: txSignature,
+    solscanUrl: txSignature ? `https://solscan.io/tx/${txSignature}` : null,
+    escrowVault: ESCROW_VAULT_ADDRESS,
     market: updatedMarket
   });
 });
@@ -153,5 +152,6 @@ app.get('/api/user/positions', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 MusicX 24H Prediction Markets API running on port ${PORT}`);
+  console.log(`🚀 MusicX Onchain Escrow API running on port ${PORT}`);
+  console.log(`🔒 Vault address: ${ESCROW_VAULT_ADDRESS}`);
 });

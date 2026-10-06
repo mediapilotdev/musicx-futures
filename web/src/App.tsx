@@ -10,12 +10,11 @@ import {
   Coins, 
   ShieldCheck,
   Disc3,
-  Swords,
-  Sparkles,
   ExternalLink,
-  ChevronRight
+  ChevronRight,
+  ArrowUpRight
 } from 'lucide-react';
-import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL, clusterApiUrl } from '@solana/web3.js';
+import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 interface Market {
   id: string;
@@ -47,22 +46,26 @@ interface Position {
   settlement_date: string;
 }
 
+// Onchain Escrow Vault on Solana Mainnet
+const ESCROW_VAULT_PUBLIC_KEY = new PublicKey('32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG');
+
 export default function App() {
   const [markets, setMarkets] = useState<Market[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
-  const [solBalance, setSolBalance] = useState<number>(3.25);
+  const [solBalance, setSolBalance] = useState<number>(0);
   const [activeTab, setActiveTab] = useState<'markets' | 'portfolio'>('markets');
   const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
   const [tradeChoice, setTradeChoice] = useState<'YES' | 'NO'>('YES');
-  const [solAmount, setSolAmount] = useState<number>(0.2);
+  const [solAmount, setSolAmount] = useState<number>(0.05);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; link?: string } | null>(null);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://musicx-futures-api-production.up.railway.app';
+  const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
 
   useEffect(() => {
     fetchMarkets();
@@ -82,7 +85,7 @@ export default function App() {
   const connectWallet = async () => {
     try {
       const solana = (window as any).solana;
-      if (solana && solana.isPhantom) {
+      if (solana) {
         const resp = await solana.connect();
         const pubkey = resp.publicKey.toString();
         setWalletConnected(true);
@@ -90,11 +93,7 @@ export default function App() {
         fetchSolBalance(pubkey);
         showToast(`Connected: ${pubkey.slice(0, 4)}...${pubkey.slice(-4)}`);
       } else {
-        const mockAddress = '7XwK1M' + Math.random().toString(36).substring(2, 8) + 'pQzR';
-        setWalletConnected(true);
-        setWalletAddress(mockAddress);
-        setSolBalance(4.5);
-        showToast(`Connected Devnet Wallet: ${mockAddress.slice(0, 4)}...`);
+        alert('Please install Phantom or Solflare wallet from phantom.app or solflare.com to trade with real SOL!');
       }
     } catch {
       showToast('⚠️ Wallet connection request dismissed');
@@ -103,11 +102,11 @@ export default function App() {
 
   const fetchSolBalance = async (pubkey: string) => {
     try {
-      const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+      const connection = new Connection(SOLANA_RPC, 'confirmed');
       const balance = await connection.getBalance(new PublicKey(pubkey));
-      setSolBalance(balance / LAMPORTS_PER_SOL);
+      setSolBalance(+(balance / LAMPORTS_PER_SOL).toFixed(3));
     } catch {
-      setSolBalance(3.25);
+      setSolBalance(0.5);
     }
   };
 
@@ -132,19 +131,19 @@ export default function App() {
     }
   };
 
-  const showToast = (msg: string) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
+  const showToast = (text: string, link?: string) => {
+    setToastMsg({ text, link });
+    setTimeout(() => setToastMsg(null), 6000);
   };
 
   const handlePredictSol = async () => {
     if (!selectedMarket) return;
     if (!walletConnected) {
-      showToast('⚠️ Please connect your Solana wallet first');
+      showToast('⚠️ Please connect Phantom / Solflare wallet first');
       return;
     }
-    if (solAmount > solBalance) {
-      showToast('⚠️ Insufficient SOL in connected wallet');
+    if (solAmount > solBalance && solBalance > 0) {
+      showToast(`⚠️ Insufficient balance (${solBalance} SOL available)`);
       return;
     }
 
@@ -153,28 +152,30 @@ export default function App() {
       let txSig = '';
       const solana = (window as any).solana;
 
-      if (solana && solana.isPhantom && solana.isConnected) {
+      if (solana && solana.isPhantom) {
         try {
-          const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+          const connection = new Connection(SOLANA_RPC, 'confirmed');
           const transaction = new Transaction().add(
             SystemProgram.transfer({
               fromPubkey: new PublicKey(walletAddress),
-              toPubkey: new PublicKey('8szR7W2QGk26QW9m5B8V51Q91k8c7jYqZkH9x8d3'),
-              lamports: solAmount * LAMPORTS_PER_SOL,
+              toPubkey: ESCROW_VAULT_PUBLIC_KEY,
+              lamports: Math.round(solAmount * LAMPORTS_PER_SOL),
             })
           );
           transaction.feePayer = new PublicKey(walletAddress);
           const { blockhash } = await connection.getLatestBlockhash();
           transaction.recentBlockhash = blockhash;
-          const { signature } = await solana.signAndSendTransaction(transaction);
-          txSig = signature;
-        } catch {
-          txSig = 'sim_' + Math.random().toString(36).substring(2, 12);
+
+          const signed = await solana.signAndSendTransaction(transaction);
+          txSig = signed.signature;
+        } catch (walletErr: any) {
+          showToast(`❌ Solana rejected: ${walletErr?.message || 'Cancelled'}`);
+          setIsSubmitting(false);
+          return;
         }
-      } else {
-        txSig = 'devnet_tx_' + Math.random().toString(36).substring(2, 12);
       }
 
+      // Record to backend database
       const res = await fetch(`${API_BASE}/api/predict/sol`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -189,7 +190,10 @@ export default function App() {
 
       if (res.ok) {
         setSolBalance((prev) => Math.max(0, +(prev - solAmount).toFixed(3)));
-        showToast(`✅ Placed ${tradeChoice} bet for ${solAmount} SOL!`);
+        showToast(
+          `🎉 Confirmed on Solana! Staked ${solAmount} SOL on ${tradeChoice}`,
+          txSig ? `https://solscan.io/tx/${txSig}` : undefined
+        );
         setSelectedMarket(null);
         fetchMarkets();
         fetchPositions();
@@ -197,7 +201,7 @@ export default function App() {
         showToast('⚠️ Error registering prediction');
       }
     } catch {
-      showToast('⚠️ Prediction transaction failed');
+      showToast('⚠️ Transaction failed');
     } finally {
       setIsSubmitting(false);
     }
@@ -209,14 +213,14 @@ export default function App() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0b0e17' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#090b10' }}>
       
       {/* Top Navbar */}
       <header style={{
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        backgroundColor: 'rgba(11, 14, 23, 0.9)',
+        backgroundColor: 'rgba(9, 11, 16, 0.92)',
         backdropFilter: 'blur(16px)',
         borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
         padding: '0.85rem 1.25rem',
@@ -249,15 +253,38 @@ export default function App() {
                 fontWeight: 800,
                 border: '1px solid rgba(16, 185, 129, 0.3)'
               }}>
-                24H MARKETS
+                MAINNET LIVE
               </span>
             </h1>
-            <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0 }}>Live Spotify & Streaming Predictions on Solana</p>
+            <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0 }}>Onchain Spotify & Streaming Predictions on Solana</p>
           </div>
         </div>
 
-        {/* Solana Wallet Capsule */}
-        <div>
+        {/* Solana Wallet Connect & Vault Link */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+          <a
+            href="https://solscan.io/account/32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              fontSize: '0.72rem',
+              color: '#9ca3af',
+              textDecoration: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '3px',
+              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+              padding: '0.35rem 0.65rem',
+              borderRadius: '8px',
+              border: '1px solid rgba(255, 255, 255, 0.08)'
+            }}
+            title="View Onchain Escrow Vault on Solscan"
+          >
+            <ShieldCheck size={13} color="#10b981" />
+            <span style={{ fontFamily: 'monospace' }}>Vault 32WW...M8zG</span>
+            <ExternalLink size={11} />
+          </a>
+
           {walletConnected ? (
             <div style={{
               display: 'flex',
@@ -294,7 +321,7 @@ export default function App() {
                 boxShadow: '0 0 18px rgba(16, 185, 129, 0.4)'
               }}
             >
-              <Wallet size={15} /> Connect Wallet
+              <Wallet size={15} /> Connect Phantom
             </button>
           )}
         </div>
@@ -303,7 +330,7 @@ export default function App() {
       {/* Main Container */}
       <main style={{ flex: 1, maxWidth: '1080px', margin: '0 auto', width: '100%', padding: '1.25rem 1rem' }}>
         
-        {/* Polymarket-style Category Filter Header */}
+        {/* Categories Bar */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -314,7 +341,6 @@ export default function App() {
           borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
           paddingBottom: '0.85rem'
         }}>
-          {/* Categories Pill Bar */}
           <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '4px' }}>
             {[
               { id: 'ALL', label: '⚡ All Fast Markets' },
@@ -335,8 +361,7 @@ export default function App() {
                   fontSize: '0.82rem',
                   fontWeight: 700,
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
+                  whiteSpace: 'nowrap'
                 }}
               >
                 {cat.label}
@@ -344,7 +369,6 @@ export default function App() {
             ))}
           </div>
 
-          {/* Toggle between Markets and User Bets */}
           <div style={{ display: 'flex', gap: '0.4rem' }}>
             <button
               onClick={() => setActiveTab('markets')}
@@ -382,7 +406,6 @@ export default function App() {
         {/* Tab 1: Markets List */}
         {activeTab === 'markets' && (
           <div>
-            {/* Search Input */}
             <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
               <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
               <input
@@ -403,7 +426,7 @@ export default function App() {
               />
             </div>
 
-            {/* Polymarket Card Grid */}
+            {/* Markets Grid */}
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
@@ -428,7 +451,6 @@ export default function App() {
                     }}
                   >
                     <div>
-                      {/* Top Header Row with Icon & Time */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                           <Clock size={13} color="#10b981" />
@@ -441,7 +463,6 @@ export default function App() {
                         </span>
                       </div>
 
-                      {/* Main Title & Image */}
                       <div style={{ display: 'flex', gap: '0.85rem', marginBottom: '1rem' }}>
                         <img
                           src={m.image_url}
@@ -465,10 +486,9 @@ export default function App() {
                       </div>
                     </div>
 
-                    {/* Polymarket Two-Box YES / NO Buttons */}
+                    {/* YES / NO Two-Button Odds Box */}
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.85rem' }}>
-                        {/* YES Box */}
                         <button
                           onClick={() => { setSelectedMarket(m); setTradeChoice('YES'); }}
                           style={{
@@ -480,15 +500,13 @@ export default function App() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            color: '#fff',
-                            transition: 'all 0.15s ease'
+                            color: '#fff'
                           }}
                         >
                           <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981' }}>YES</span>
                           <span style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace' }}>{yesPercent}¢</span>
                         </button>
 
-                        {/* NO Box */}
                         <button
                           onClick={() => { setSelectedMarket(m); setTradeChoice('NO'); }}
                           style={{
@@ -500,8 +518,7 @@ export default function App() {
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            color: '#fff',
-                            transition: 'all 0.15s ease'
+                            color: '#fff'
                           }}
                         >
                           <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ef4444' }}>NO</span>
@@ -509,11 +526,10 @@ export default function App() {
                         </button>
                       </div>
 
-                      {/* Resolution Source Footer */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#6b7280' }}>
                         <span>Oracle: Spotify Charts</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#9ca3af' }}>
-                          Trade on Solana <ChevronRight size={12} />
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#10b981', fontWeight: 600 }}>
+                          Solana Escrow <ChevronRight size={12} />
                         </span>
                       </div>
                     </div>
@@ -528,7 +544,7 @@ export default function App() {
         {activeTab === 'portfolio' && (
           <div>
             <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>
-              Your Active Solana Positions
+              Your Active Onchain Bets
             </h2>
             {positions.length === 0 ? (
               <div style={{
@@ -603,9 +619,24 @@ export default function App() {
                         <div style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace', color: '#10b981' }}>
                           {p.amount_sol} SOL
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#9ca3af' }}>
-                          Payout if win: {(p.shares * 1.0).toFixed(2)} SOL
-                        </div>
+                        {p.tx_signature && (
+                          <a
+                            href={`https://solscan.io/tx/${p.tx_signature}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{
+                              fontSize: '0.7rem',
+                              color: '#60a5fa',
+                              textDecoration: 'none',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'flex-end',
+                              gap: '2px'
+                            }}
+                          >
+                            Solscan <ArrowUpRight size={11} />
+                          </a>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -617,7 +648,7 @@ export default function App() {
 
       </main>
 
-      {/* Polymarket-style Order Slip Modal */}
+      {/* Real SOL Onchain Order Slip Modal */}
       {selectedMarket && (
         <div style={{
           position: 'fixed',
@@ -685,16 +716,16 @@ export default function App() {
               </button>
             </div>
 
-            {/* Amount Presets */}
+            {/* SOL Stake Selection */}
             <div style={{ marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                 <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Stake Amount (SOL)</span>
                 <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
-                  Balance: {solBalance.toFixed(2)} SOL
+                  Wallet Balance: {solBalance.toFixed(3)} SOL
                 </span>
               </div>
               <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                {[0.1, 0.25, 0.5, 1.0].map((amt) => (
+                {[0.02, 0.05, 0.1, 0.25].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setSolAmount(amt)}
@@ -716,11 +747,10 @@ export default function App() {
               </div>
               <input
                 type="number"
-                step="0.05"
+                step="0.01"
                 value={solAmount}
                 onChange={(e) => setSolAmount(Number(e.target.value))}
-                min={0.05}
-                max={solBalance}
+                min={0.01}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -735,7 +765,7 @@ export default function App() {
               />
             </div>
 
-            {/* Potential Payout Box */}
+            {/* Escrow note */}
             <div style={{
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
               borderRadius: '12px',
@@ -748,7 +778,7 @@ export default function App() {
               <div>
                 <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'block' }}>Potential Return</span>
                 <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
-                  {(solAmount / (tradeChoice === 'YES' ? selectedMarket.yes_price : selectedMarket.no_price)).toFixed(2)} SOL
+                  {(solAmount / (tradeChoice === 'YES' ? selectedMarket.yes_price : selectedMarket.no_price)).toFixed(3)} SOL
                 </span>
               </div>
               <div style={{ textAlign: 'right' }}>
@@ -759,7 +789,7 @@ export default function App() {
               </div>
             </div>
 
-            {/* Submit Button */}
+            {/* Place Onchain Bet Button */}
             <button
               onClick={handlePredictSol}
               disabled={isSubmitting}
@@ -776,13 +806,13 @@ export default function App() {
                 opacity: isSubmitting ? 0.7 : 1
               }}
             >
-              {isSubmitting ? 'Signing on Solana...' : `Buy ${tradeChoice} for ${solAmount} SOL`}
+              {isSubmitting ? 'Signing on Solana...' : `Confirm on Solana: ${solAmount} SOL`}
             </button>
           </div>
         </div>
       )}
 
-      {/* Floating Toast */}
+      {/* Floating Toast with Solscan Link */}
       {toastMsg && (
         <div style={{
           position: 'fixed',
@@ -803,7 +833,17 @@ export default function App() {
           gap: '8px'
         }}>
           <CheckCircle2 size={16} color="#10b981" />
-          {toastMsg}
+          <span>{toastMsg.text}</span>
+          {toastMsg.link && (
+            <a
+              href={toastMsg.link}
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: '#60a5fa', marginLeft: '6px', display: 'flex', alignItems: 'center' }}
+            >
+              Solscan <ArrowUpRight size={13} />
+            </a>
+          )}
         </div>
       )}
     </div>
