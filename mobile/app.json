@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "MusicX",
+    "slug": "musicx-futures",
+    "version": "1.0.0",
+    "scheme": "musicx",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#090a0f",
+    "newArchEnabled": true,
+    "platforms": [
+      "ios",
+      "android"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "fun.musicx.futures",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    ],
+    "android": {
+      "package": "fun.musicx.futures",
+      "edgeToEdgeEnabled": true
+    },
+    "owner": "arrfire"
+  }
+}
