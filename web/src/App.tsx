@@ -235,12 +235,21 @@ export default function App() {
 
   const fetchPositions = async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/user/positions`);
+      const url = walletAddress 
+        ? `${API_BASE}/api/user/positions?wallet=${walletAddress}` 
+        : `${API_BASE}/api/user/positions`;
+      const res = await fetch(url);
       if (res.ok) setPositions(await res.json());
     } catch {
       // fallback
     }
   };
+
+  useEffect(() => {
+    if (walletAddress) {
+      fetchPositions();
+    }
+  }, [walletAddress]);
 
   const showToast = (text: string, link?: string) => {
     setToastMsg({ text, link });
@@ -281,11 +290,15 @@ export default function App() {
           transaction.recentBlockhash = blockhash;
 
           const signed = await solana.signAndSendTransaction(transaction);
-          txSig = signed.signature;
+          txSig = typeof signed === 'string' ? signed : signed?.signature || '';
         } catch (walletErr: any) {
-          showToast(`❌ Solana rejected: ${walletErr?.message || 'Cancelled'}`);
-          setIsSubmitting(false);
-          return;
+          if (walletErr?.signature) {
+            txSig = walletErr.signature;
+          } else {
+            showToast(`❌ Solana rejected: ${walletErr?.message || 'Cancelled'}`);
+            setIsSubmitting(false);
+            return;
+          }
         }
       }
 
@@ -309,13 +322,16 @@ export default function App() {
           txSig ? `https://solscan.io/tx/${txSig}` : undefined
         );
         setSelectedMarket(null);
+        setActiveTab('portfolio'); // Automatically switch to portfolio so user sees their bet
         fetchMarkets();
         fetchPositions();
       } else {
-        showToast('⚠️ Error registering prediction');
+        const errData = await res.json().catch(() => null);
+        showToast(`⚠️ ${errData?.error || 'Error registering prediction'}`);
+        fetchPositions();
       }
-    } catch {
-      showToast('⚠️ Transaction failed');
+    } catch (err: any) {
+      showToast(`⚠️ Transaction failed: ${err?.message || ''}`);
     } finally {
       setIsSubmitting(false);
     }

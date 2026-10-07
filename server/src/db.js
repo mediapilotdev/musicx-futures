@@ -57,6 +57,16 @@ db.exec(`
   );
 `);
 
+// Ensure default user exists so foreign keys never fail
+try {
+  db.exec(`
+    INSERT OR IGNORE INTO users (id, username, wallet_address, balance_pts, sol_balance)
+    VALUES ('usr_sol', 'solana_trader', 'system_sol', 1000.0, 5.0);
+  `);
+} catch (e) {
+  console.warn('Default user creation warning:', e.message);
+}
+
 // Auto-migrate new columns for live persistent databases
 try { db.exec("ALTER TABLE markets ADD COLUMN news_url TEXT;"); } catch(e){}
 try { db.exec("ALTER TABLE markets ADD COLUMN news_title TEXT;"); } catch(e){}
@@ -260,3 +270,36 @@ try {
 } catch (e) {
   console.warn('Market sync warning:', e.message);
 }
+
+// Retroactive restoration for confirmed onchain transaction
+try {
+  const confirmedTx = 'QuFjDhmLY19FhJufEXCvkE3qoPWd1DrXTJCgNqsQxm9nq1ocAHT52fP6x4rb4fNoGndtjSsBYNjS8qXVip2H9Ms';
+  const existing = db.prepare('SELECT id FROM positions WHERE tx_signature = ?').get(confirmedTx);
+  if (!existing) {
+    const userWallet = '6owU82nTHo2WSnSmVHfite7czRjbJppduuVPjpRzqEWr';
+    const userId = 'usr_6owU82nT';
+    db.prepare(`
+      INSERT OR IGNORE INTO users (id, username, wallet_address)
+      VALUES (?, ?, ?)
+    `).run(userId, '6owU82nT', userWallet);
+
+    db.prepare(`
+      INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, shares, avg_price, tx_signature, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).run(
+      'pos_QuFjDhmL',
+      userId,
+      userWallet,
+      'mkt_battle_taylor_adela',
+      'YES',
+      0.001,
+      0.0017,
+      0.58,
+      confirmedTx
+    );
+    console.log(`✅ Restored confirmed onchain position for tx: ${confirmedTx}`);
+  }
+} catch (e) {
+  console.warn('Tx restoration error:', e.message);
+}
+

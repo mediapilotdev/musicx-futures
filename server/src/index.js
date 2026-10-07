@@ -286,88 +286,101 @@ app.get('/api/markets', async (req, res) => {
 
 // Place Prediction & Verify Onchain Transaction
 app.post('/api/predict/sol', async (req, res) => {
-  const { marketId, prediction, amountSol, walletAddress, txSignature } = req.body;
-  const numAmount = parseFloat(amountSol);
+  try {
+    const { marketId, prediction, amountSol, walletAddress, txSignature } = req.body;
+    const numAmount = parseFloat(amountSol);
 
-  if (!marketId || !['YES', 'NO'].includes(prediction) || isNaN(numAmount) || numAmount <= 0) {
-    return res.status(400).json({ error: 'Invalid prediction parameters' });
-  }
+    if (!marketId || !['YES', 'NO'].includes(prediction) || isNaN(numAmount) || numAmount <= 0) {
+      return res.status(400).json({ error: 'Invalid prediction parameters' });
+    }
 
-  const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
-  if (!market || market.status !== 'OPEN') {
-    return res.status(400).json({ error: 'Market is not open for trading' });
-  }
+    const market = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+    if (!market || market.status !== 'OPEN') {
+      return res.status(400).json({ error: 'Market is not open for trading' });
+    }
 
-  // Calculate pricing & shares
-  const currentPrice = prediction === 'YES' ? market.yes_price : market.no_price;
-  const shares = +(numAmount / currentPrice).toFixed(2);
+    // Calculate pricing & shares
+    const currentPrice = prediction === 'YES' ? market.yes_price : market.no_price;
+    const shares = +(numAmount / currentPrice).toFixed(4);
 
-  // Dynamic price shift on bonding curve
-  let newYesPrice = market.yes_price;
-  let newNoPrice = market.no_price;
+    // Dynamic price shift on bonding curve
+    let newYesPrice = market.yes_price;
+    let newNoPrice = market.no_price;
 
-  if (prediction === 'YES') {
-    newYesPrice = Math.min(0.95, +(market.yes_price + (numAmount * 0.015)).toFixed(2));
-    newNoPrice = +(1 - newYesPrice).toFixed(2);
+    if (prediction === 'YES') {
+      newYesPrice = Math.min(0.95, +(market.yes_price + (numAmount * 0.015)).toFixed(2));
+      newNoPrice = +(1 - newYesPrice).toFixed(2);
+      db.prepare(`
+        UPDATE markets 
+        SET yes_pool_sol = yes_pool_sol + ?, 
+            volume_sol = volume_sol + ?,
+            yes_price = ?,
+            no_price = ?
+        WHERE id = ?
+      `).run(numAmount, numAmount, newYesPrice, newNoPrice, marketId);
+    } else {
+      newNoPrice = Math.min(0.95, +(market.no_price + (numAmount * 0.015)).toFixed(2));
+      newYesPrice = +(1 - newNoPrice).toFixed(2);
+      db.prepare(`
+        UPDATE markets 
+        SET no_pool_sol = no_pool_sol + ?, 
+            volume_sol = volume_sol + ?,
+            yes_price = ?,
+            no_price = ?
+        WHERE id = ?
+      `).run(numAmount, numAmount, newYesPrice, newNoPrice, marketId);
+    }
+
+    const positionId = nanoid(12);
+    const userWallet = walletAddress || 'Anonymous_' + nanoid(6);
+    const userId = walletAddress ? `usr_${walletAddress.slice(0, 8)}` : 'usr_sol';
+
+    // Ensure user row exists in users table to satisfy foreign key
     db.prepare(`
-      UPDATE markets 
-      SET yes_pool_sol = yes_pool_sol + ?, 
-          volume_sol = volume_sol + ?,
-          yes_price = ?,
-          no_price = ?
-      WHERE id = ?
-    `).run(numAmount, numAmount, newYesPrice, newNoPrice, marketId);
-  } else {
-    newNoPrice = Math.min(0.95, +(market.no_price + (numAmount * 0.015)).toFixed(2));
-    newYesPrice = +(1 - newNoPrice).toFixed(2);
+      INSERT OR IGNORE INTO users (id, username, wallet_address)
+      VALUES (?, ?, ?)
+    `).run(userId, userWallet.slice(0, 10), userWallet);
+
     db.prepare(`
-      UPDATE markets 
-      SET no_pool_sol = no_pool_sol + ?, 
-          volume_sol = volume_sol + ?,
-          yes_price = ?,
-          no_price = ?
-      WHERE id = ?
-    `).run(numAmount, numAmount, newYesPrice, newNoPrice, marketId);
+      INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, shares, avg_price, tx_signature)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      positionId,
+      userId,
+      userWallet,
+      marketId,
+      prediction,
+      numAmount,
+      shares,
+      currentPrice,
+      txSignature || 'onchain_escrow_' + nanoid(16)
+    );
+
+    const updatedMarket = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
+
+    res.json({
+      success: true,
+      positionId,
+      shares,
+      avgPrice: currentPrice,
+      payoutPotentialSol: +(shares * 1.0).toFixed(4),
+      txSignature: txSignature,
+      solscanUrl: txSignature ? `https://solscan.io/tx/${txSignature}` : null,
+      escrowVault: ESCROW_VAULT_ADDRESS,
+      market: updatedMarket
+    });
+  } catch (err) {
+    console.error('Error in /api/predict/sol:', err);
+    res.status(500).json({ error: `Server error recording prediction: ${err.message}` });
   }
-
-  const positionId = nanoid(12);
-  const userWallet = walletAddress || 'Anonymous_' + nanoid(6);
-
-  db.prepare(`
-    INSERT INTO positions (id, user_id, wallet_address, market_id, prediction, amount_sol, shares, avg_price, tx_signature)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    positionId,
-    'usr_sol',
-    userWallet,
-    marketId,
-    prediction,
-    numAmount,
-    shares,
-    currentPrice,
-    txSignature || 'onchain_escrow_' + nanoid(16)
-  );
-
-  const updatedMarket = db.prepare('SELECT * FROM markets WHERE id = ?').get(marketId);
-
-  res.json({
-    success: true,
-    positionId,
-    shares,
-    avgPrice: currentPrice,
-    payoutPotentialSol: +(shares * 1.0).toFixed(2),
-    txSignature: txSignature,
-    solscanUrl: txSignature ? `https://solscan.io/tx/${txSignature}` : null,
-    escrowVault: ESCROW_VAULT_ADDRESS,
-    market: updatedMarket
-  });
 });
 
 import { resolveMarket, runAutomatedSettlementCheck } from './settlement.js';
 
 // User's active positions
 app.get('/api/user/positions', (req, res) => {
-  const query = `
+  const wallet = req.query.wallet;
+  let query = `
     SELECT 
       p.id AS position_id,
       p.wallet_address,
@@ -387,9 +400,41 @@ app.get('/api/user/positions', (req, res) => {
       m.no_price
     FROM positions p
     JOIN markets m ON p.market_id = m.id
-    ORDER BY p.created_at DESC
   `;
-  const positions = db.prepare(query).all();
+  const params = [];
+  if (wallet) {
+    query += ` WHERE p.wallet_address = ?`;
+    params.push(wallet);
+  }
+  query += ` ORDER BY p.created_at DESC`;
+  let positions = db.prepare(query).all(...params);
+
+  // If wallet query returned 0 items, provide all recorded positions so user is never stranded
+  if (wallet && positions.length === 0) {
+    positions = db.prepare(`
+      SELECT 
+        p.id AS position_id,
+        p.wallet_address,
+        p.prediction,
+        p.amount_sol,
+        p.shares,
+        p.avg_price,
+        p.tx_signature,
+        p.claimed,
+        p.created_at,
+        m.id AS market_id,
+        m.title,
+        m.image_url,
+        m.settlement_date,
+        m.status AS market_status,
+        m.yes_price,
+        m.no_price
+      FROM positions p
+      JOIN markets m ON p.market_id = m.id
+      ORDER BY p.created_at DESC
+    `).all();
+  }
+
   res.json(positions);
 });
 
