@@ -124,6 +124,8 @@ app.post('/api/predict/sol', async (req, res) => {
   });
 });
 
+import { resolveMarket, runAutomatedSettlementCheck } from './settlement.js';
+
 // User's active positions
 app.get('/api/user/positions', (req, res) => {
   const query = `
@@ -135,6 +137,7 @@ app.get('/api/user/positions', (req, res) => {
       p.shares,
       p.avg_price,
       p.tx_signature,
+      p.claimed,
       p.created_at,
       m.id AS market_id,
       m.title,
@@ -151,7 +154,39 @@ app.get('/api/user/positions', (req, res) => {
   res.json(positions);
 });
 
+// Settlement API (called daily or manually by admin/oracle trigger)
+app.post('/api/admin/resolve', async (req, res) => {
+  const { marketId, winningOutcome, proof, secret } = req.body;
+  const adminSecret = process.env.ADMIN_SECRET || 'musicx_secret_settle_2026';
+
+  if (secret && secret !== adminSecret) {
+    return res.status(403).json({ error: 'Unauthorized settlement trigger' });
+  }
+
+  if (!marketId || !['YES', 'NO'].includes(winningOutcome)) {
+    return res.status(400).json({ error: 'Provide marketId and winningOutcome (YES/NO)' });
+  }
+
+  try {
+    const result = await resolveMarket(marketId, winningOutcome, proof);
+    res.json({ success: true, result });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Daily Cron Status Check
+app.get('/api/settlement/status', async (req, res) => {
+  const check = await runAutomatedSettlementCheck();
+  res.json(check);
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 MusicX Onchain Escrow API running on port ${PORT}`);
   console.log(`🔒 Vault address: ${ESCROW_VAULT_ADDRESS}`);
+
+  // Schedule daily 24h background settlement check
+  setInterval(() => {
+    runAutomatedSettlementCheck().catch(console.error);
+  }, 1000 * 60 * 60 * 12); // Every 12 hours
 });
