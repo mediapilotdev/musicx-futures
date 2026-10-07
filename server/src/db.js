@@ -95,9 +95,9 @@ try {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.65,
       no_price: 0.35,
-      yes_pool_sol: 45.5,
-      no_pool_sol: 24.5,
-      volume_sol: 70.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_adela_flip_no1',
@@ -114,9 +114,9 @@ try {
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
       yes_price: 0.38,
       no_price: 0.62,
-      yes_pool_sol: 26.6,
-      no_pool_sol: 43.4,
-      volume_sol: 70.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_battle_taylor_adela',
@@ -131,11 +131,11 @@ try {
       news_title: 'Kworb Global Daily: Head-to-Head Comparative Ranks',
       news_source: 'Kworb Charts',
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
-      yes_price: 0.58,
-      no_price: 0.42,
-      yes_pool_sol: 52.2,
-      no_pool_sol: 37.8,
-      volume_sol: 90.0
+      yes_price: 0.59,
+      no_price: 0.41,
+      yes_pool_sol: 0.001,
+      no_pool_sol: 0.0,
+      volume_sol: 0.001
     },
     {
       id: 'mkt_olivia_two_top10',
@@ -152,9 +152,9 @@ try {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.76,
       no_price: 0.24,
-      yes_pool_sol: 64.6,
-      no_pool_sol: 20.4,
-      volume_sol: 85.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_newfriday_debut_top20',
@@ -171,9 +171,9 @@ try {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.44,
       no_price: 0.56,
-      yes_pool_sol: 35.2,
-      no_pool_sol: 44.8,
-      volume_sol: 80.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_dualipa_top15',
@@ -190,9 +190,9 @@ try {
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
       yes_price: 0.52,
       no_price: 0.48,
-      yes_pool_sol: 31.2,
-      no_pool_sol: 28.8,
-      volume_sol: 60.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     }
   ];
 

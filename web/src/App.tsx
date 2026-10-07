@@ -589,7 +589,7 @@ export default function App() {
                           </span>
                         </div>
                         <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontFamily: 'monospace' }}>
-                          Vol: {m.volume_sol.toFixed(1)} SOL
+                          Vol: {m.volume_sol > 0 ? (m.volume_sol < 0.01 ? m.volume_sol.toFixed(3) : m.volume_sol.toFixed(2)) : '0.00'} SOL
                         </span>
                       </div>
 

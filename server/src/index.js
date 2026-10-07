@@ -74,9 +74,9 @@ export function syncFreshMarkets() {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.65,
       no_price: 0.35,
-      yes_pool_sol: 45.5,
-      no_pool_sol: 24.5,
-      volume_sol: 70.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_adela_flip_no1',
@@ -93,9 +93,9 @@ export function syncFreshMarkets() {
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
       yes_price: 0.38,
       no_price: 0.62,
-      yes_pool_sol: 26.6,
-      no_pool_sol: 43.4,
-      volume_sol: 70.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_battle_taylor_adela',
@@ -110,11 +110,11 @@ export function syncFreshMarkets() {
       news_title: 'Kworb Global Daily: Head-to-Head Comparative Ranks',
       news_source: 'Kworb Charts',
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
-      yes_price: 0.58,
-      no_price: 0.42,
-      yes_pool_sol: 52.2,
-      no_pool_sol: 37.8,
-      volume_sol: 90.0
+      yes_price: 0.59,
+      no_price: 0.41,
+      yes_pool_sol: 0.001,
+      no_pool_sol: 0.0,
+      volume_sol: 0.001
     },
     {
       id: 'mkt_olivia_two_top10',
@@ -131,9 +131,9 @@ export function syncFreshMarkets() {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.76,
       no_price: 0.24,
-      yes_pool_sol: 64.6,
-      no_pool_sol: 20.4,
-      volume_sol: 85.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_newfriday_debut_top20',
@@ -150,9 +150,9 @@ export function syncFreshMarkets() {
       news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest',
       yes_price: 0.44,
       no_price: 0.56,
-      yes_pool_sol: 35.2,
-      no_pool_sol: 44.8,
-      volume_sol: 80.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     },
     {
       id: 'mkt_dualipa_top15',
@@ -169,9 +169,9 @@ export function syncFreshMarkets() {
       news_url: 'https://kworb.net/spotify/country/global_daily.html',
       yes_price: 0.52,
       no_price: 0.48,
-      yes_pool_sol: 31.2,
-      no_pool_sol: 28.8,
-      volume_sol: 60.0
+      yes_pool_sol: 0.0,
+      no_pool_sol: 0.0,
+      volume_sol: 0.0
     }
   ];
 
@@ -265,16 +265,28 @@ app.get('/api/markets', async (req, res) => {
     query += ' AND category = ?';
     params.push(category);
   }
-  query += ' ORDER BY volume_sol DESC';
+  query += ' ORDER BY volume_sol DESC, created_at DESC';
 
   const markets = db.prepare(query).all(...params);
+
+  // Compute live actual onchain volume from verified positions
+  const volRows = db.prepare(`
+    SELECT market_id, COALESCE(SUM(amount_sol), 0) AS real_volume 
+    FROM positions 
+    WHERE tx_signature NOT LIKE 'test_%'
+    GROUP BY market_id
+  `).all();
+  const volMap = new Map(volRows.map(r => [r.market_id, r.real_volume]));
+
   const oracleData = await getCachedOracleVerification();
   const vMap = new Map((oracleData?.verifications || []).map(v => [v.marketId, v]));
 
   const enrichedMarkets = markets.map(m => {
     const v = vMap.get(m.id);
+    const realVol = +(volMap.get(m.id) || 0);
     return {
       ...m,
+      volume_sol: +(realVol.toFixed(4)),
       live_status_text: v?.currentStatusText || null,
       live_metric_verified: v?.liveMetricVerified ?? null,
       oracle_details: v?.oracleDetails || null
@@ -303,12 +315,14 @@ app.post('/api/predict/sol', async (req, res) => {
     const currentPrice = prediction === 'YES' ? market.yes_price : market.no_price;
     const shares = +(numAmount / currentPrice).toFixed(4);
 
-    // Dynamic price shift on bonding curve
+    // Responsive micro-liquidity bonding curve:
+    // Immediate feedback: 0.001 SOL moves 1¢, 0.01 SOL moves 1¢, 0.05 moves 5¢
+    const priceShift = +(Math.max(0.01, numAmount * 1.0)).toFixed(2);
     let newYesPrice = market.yes_price;
     let newNoPrice = market.no_price;
 
     if (prediction === 'YES') {
-      newYesPrice = Math.min(0.95, +(market.yes_price + (numAmount * 0.015)).toFixed(2));
+      newYesPrice = Math.min(0.95, +(market.yes_price + priceShift).toFixed(2));
       newNoPrice = +(1 - newYesPrice).toFixed(2);
       db.prepare(`
         UPDATE markets 
@@ -319,7 +333,7 @@ app.post('/api/predict/sol', async (req, res) => {
         WHERE id = ?
       `).run(numAmount, numAmount, newYesPrice, newNoPrice, marketId);
     } else {
-      newNoPrice = Math.min(0.95, +(market.no_price + (numAmount * 0.015)).toFixed(2));
+      newNoPrice = Math.min(0.95, +(market.no_price + priceShift).toFixed(2));
       newYesPrice = +(1 - newNoPrice).toFixed(2);
       db.prepare(`
         UPDATE markets 
