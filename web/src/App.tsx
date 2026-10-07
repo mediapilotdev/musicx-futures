@@ -14,7 +14,10 @@ import {
   ArrowUpRight,
   Newspaper,
   BookOpen,
-  Disc3
+  Disc3,
+  Timer,
+  Info,
+  Sparkles
 } from 'lucide-react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
@@ -25,6 +28,8 @@ interface Market {
   subtitle: string;
   image_url: string;
   settlement_date: string;
+  settlement_timestamp?: string;
+  settlement_rules?: string;
   resolution_source: string;
   news_url?: string;
   news_title?: string;
@@ -36,6 +41,77 @@ interface Market {
   yes_pool_sol: number;
   no_pool_sol: number;
   volume_sol: number;
+}
+
+// Live Countdown Component
+function LiveCountdownBadge({ targetIso }: { targetIso?: string }) {
+  const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number; isExpired: boolean }>({
+    hours: 23,
+    minutes: 42,
+    seconds: 15,
+    isExpired: false
+  });
+
+  useEffect(() => {
+    if (!targetIso) return;
+    const calculateTime = () => {
+      const target = new Date(targetIso).getTime();
+      const now = Date.now();
+      const diff = target - now;
+
+      if (diff <= 0) {
+        setTimeLeft({ hours: 0, minutes: 0, seconds: 0, isExpired: true });
+        return;
+      }
+
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+      setTimeLeft({ hours, minutes, seconds, isExpired: false });
+    };
+
+    calculateTime();
+    const interval = setInterval(calculateTime, 1000);
+    return () => clearInterval(interval);
+  }, [targetIso]);
+
+  if (timeLeft.isExpired) {
+    return (
+      <span style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '4px',
+        fontSize: '0.72rem',
+        fontWeight: 800,
+        color: '#f59e0b',
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        padding: '3px 8px',
+        borderRadius: '6px'
+      }}>
+        <Clock size={12} />
+        SETTLING NOW
+      </span>
+    );
+  }
+
+  return (
+    <span style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: '4px',
+      fontSize: '0.72rem',
+      fontWeight: 800,
+      fontFamily: 'monospace',
+      color: '#10b981',
+      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      padding: '3px 8px',
+      borderRadius: '6px',
+      border: '1px solid rgba(16, 185, 129, 0.25)'
+    }}>
+      <Timer size={12} color="#10b981" />
+      <span>{String(timeLeft.hours).padStart(2, '0')}:{String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}</span>
+    </span>
+  );
 }
 
 interface Position {
@@ -459,9 +535,9 @@ export default function App() {
                   >
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Clock size={13} color="#10b981" />
-                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <LiveCountdownBadge targetIso={m.settlement_timestamp} />
+                          <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
                             {m.settlement_date}
                           </span>
                         </div>
@@ -723,7 +799,8 @@ export default function App() {
               <div>
                 <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', fontWeight: 800 }}>{selectedMarket.title}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
-                  <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>{selectedMarket.settlement_date}</span>
+                  <LiveCountdownBadge targetIso={selectedMarket.settlement_timestamp} />
+                  <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>{selectedMarket.settlement_date}</span>
                   {selectedMarket.news_url && (
                     <a
                       href={selectedMarket.news_url}
@@ -749,6 +826,8 @@ export default function App() {
                     </a>
                   )}
                 </div>
+
+                {/* Live Oracle Current Standings */}
                 {selectedMarket.live_status_text && (
                   <div style={{
                     fontSize: '0.73rem',
@@ -757,10 +836,30 @@ export default function App() {
                     border: '1px solid rgba(59, 130, 246, 0.2)',
                     padding: '5px 8px',
                     borderRadius: '8px',
-                    lineHeight: 1.35
+                    lineHeight: 1.35,
+                    marginBottom: '0.5rem'
                   }}>
                     <strong style={{ color: '#60a5fa' }}>Current Live Standings: </strong>
                     {selectedMarket.live_status_text}
+                  </div>
+                )}
+
+                {/* How Settlement Works Rule Box */}
+                {selectedMarket.settlement_rules && (
+                  <div style={{
+                    fontSize: '0.7rem',
+                    color: '#d1d5db',
+                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                    border: '1px solid rgba(255, 255, 255, 0.07)',
+                    padding: '6px 9px',
+                    borderRadius: '8px',
+                    lineHeight: 1.35
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontWeight: 700, marginBottom: '2px' }}>
+                      <Info size={11} />
+                      <span>How Settlement Works:</span>
+                    </div>
+                    {selectedMarket.settlement_rules}
                   </div>
                 )}
               </div>
