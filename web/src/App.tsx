@@ -17,7 +17,9 @@ import {
   Disc3,
   Timer,
   Info,
-  Sparkles
+  Sparkles,
+  HelpCircle,
+  Share2
 } from 'lucide-react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
@@ -145,7 +147,8 @@ export default function App() {
   const [solAmount, setSolAmount] = useState<number>(0.05);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
-  const [toastMsg, setToastMsg] = useState<{ text: string; link?: string } | null>(null);
+  const [toastMsg, setToastMsg] = useState<{ text: string; link?: string; tweetText?: string } | null>(null);
+  const [showHowItWorks, setShowHowItWorks] = useState<boolean>(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://musicx-futures-api-production.up.railway.app';
   const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
@@ -251,9 +254,9 @@ export default function App() {
     }
   }, [walletAddress]);
 
-  const showToast = (text: string, link?: string) => {
-    setToastMsg({ text, link });
-    setTimeout(() => setToastMsg(null), 6000);
+  const showToast = (text: string, link?: string, tweetText?: string) => {
+    setToastMsg({ text, link, tweetText });
+    setTimeout(() => setToastMsg(null), 8000);
   };
 
   const handlePredictSol = async () => {
@@ -317,9 +320,11 @@ export default function App() {
 
       if (res.ok) {
         setSolBalance((prev) => Math.max(0, +(prev - solAmount).toFixed(3)));
+        const tweet = `I just staked ${solAmount} SOL on ${tradeChoice} for "${selectedMarket.title}" on @MusicXFun! 🎵📈\n\nTrade 24H music futures on Solana: https://musicx.fun`;
         showToast(
           `🎉 Confirmed on Solana! Staked ${solAmount} SOL on ${tradeChoice}`,
-          txSig ? `https://solscan.io/tx/${txSig}` : undefined
+          txSig ? `https://solscan.io/tx/${txSig}` : undefined,
+          txSig ? tweet : undefined
         );
         setSelectedMarket(null);
         setActiveTab('portfolio'); // Automatically switch to portfolio so user sees their bet
@@ -391,7 +396,27 @@ export default function App() {
         </div>
 
         {/* Solana Wallet Connect & Vault Link */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <button
+            onClick={() => setShowHowItWorks(true)}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              color: '#d1d5db',
+              padding: '0.4rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.74rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <HelpCircle size={13} color="#10b981" />
+            <span>How It Works</span>
+          </button>
+
           <a
             href="https://solscan.io/account/32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG"
             target="_blank"
@@ -460,6 +485,57 @@ export default function App() {
       {/* Main Container */}
       <main style={{ flex: 1, maxWidth: '1080px', margin: '0 auto', width: '100%', padding: '1.25rem 1rem' }}>
         
+        {/* Live Onchain Activity Ticker */}
+        <div style={{
+          backgroundColor: 'rgba(16, 185, 129, 0.06)',
+          border: '1px solid rgba(16, 185, 129, 0.22)',
+          borderRadius: '12px',
+          padding: '0.55rem 1rem',
+          marginBottom: '1.25rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          flexWrap: 'wrap',
+          gap: '0.6rem',
+          fontSize: '0.76rem',
+          boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span style={{
+              width: '8px',
+              height: '8px',
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              boxShadow: '0 0 8px #10b981',
+              display: 'inline-block'
+            }} />
+            <strong style={{ color: '#10b981', letterSpacing: '0.04em' }}>LIVE ONCHAIN BETS:</strong>
+            <span style={{ color: '#e5e7eb' }}>
+              Wallet <code style={{ color: '#93c5fd', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '2px 5px', borderRadius: '4px' }}>6owU...qEWr</code> staked <strong>0.001 SOL</strong> on <span style={{ color: '#10b981', fontWeight: 700 }}>YES</span> for <em>Taylor Swift vs ADÉLA</em> (@ 59¢)
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <a
+              href="https://solscan.io/tx/QuFjDhmLY19FhJufEXCvkE3qoPWd1DrXTJCgNqsQxm9nq1ocAHT52fP6x4rb4fNoGndtjSsBYNjS8qXVip2H9Ms"
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                color: '#60a5fa',
+                textDecoration: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '3px',
+                fontWeight: 600,
+                backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                padding: '2px 8px',
+                borderRadius: '6px'
+              }}
+            >
+              Verified on Solscan <ArrowUpRight size={11} />
+            </a>
+          </div>
+        </div>
+
         {/* Categories Bar */}
         <div style={{
           display: 'flex',
@@ -659,6 +735,30 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Visual Probability Meter */}
+                    <div style={{ margin: '0.45rem 0 0.75rem 0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', fontWeight: 700, marginBottom: '5px' }}>
+                        <span style={{ color: '#10b981' }}>{yesPercent}% YES ({yesPercent}¢)</span>
+                        <span style={{ color: '#ef4444' }}>{noPercent}% NO ({noPercent}¢)</span>
+                      </div>
+                      <div style={{
+                        width: '100%',
+                        height: '6px',
+                        borderRadius: '9999px',
+                        backgroundColor: 'rgba(239, 68, 68, 0.35)',
+                        overflow: 'hidden',
+                        display: 'flex'
+                      }}>
+                        <div style={{
+                          width: `${yesPercent}%`,
+                          height: '100%',
+                          backgroundColor: '#10b981',
+                          boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
+                          transition: 'width 0.4s ease'
+                        }} />
+                      </div>
+                    </div>
+
                     {/* YES / NO Two-Button Odds Box */}
                     <div>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem', marginBottom: '0.85rem' }}>
@@ -777,7 +877,7 @@ export default function App() {
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                       <div style={{
-                        padding: '0.3rem 0.75rem',
+                        padding: '0.35rem 0.85rem',
                         borderRadius: '8px',
                         backgroundColor: p.prediction === 'YES' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
                         border: `1px solid ${p.prediction === 'YES' ? '#10b981' : '#ef4444'}`,
@@ -785,31 +885,65 @@ export default function App() {
                         fontWeight: 800,
                         fontSize: '0.85rem'
                       }}>
-                        {p.prediction}
+                        {p.prediction} ({(p.avg_price * 100).toFixed(0)}¢)
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
                         <div style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace', color: '#10b981' }}>
-                          {p.amount_sol} SOL
+                          {p.amount_sol} SOL Staked
                         </div>
-                        {p.tx_signature && (
-                          <a
-                            href={`https://solscan.io/tx/${p.tx_signature}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              fontSize: '0.7rem',
-                              color: '#60a5fa',
-                              textDecoration: 'none',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'flex-end',
-                              gap: '2px'
+                        <div style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '2px 0 4px 0' }}>
+                          Est. Return: {(p.amount_sol / p.avg_price).toFixed(3)} SOL ({(1 / p.avg_price).toFixed(2)}x)
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
+                          {p.tx_signature && (
+                            <a
+                              href={`https://solscan.io/tx/${p.tx_signature}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{
+                                fontSize: '0.7rem',
+                                color: '#60a5fa',
+                                textDecoration: 'none',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '2px',
+                                backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                                padding: '2px 7px',
+                                borderRadius: '4px'
+                              }}
+                            >
+                              Solscan <ArrowUpRight size={11} />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => {
+                              const tweetText = encodeURIComponent(
+                                `I just staked ${p.amount_sol} SOL on ${p.prediction} for "${p.title}" on @MusicXFun! 🎵📈\n\n` +
+                                `Odds: ${(p.avg_price * 100).toFixed(0)}¢ (${(1 / p.avg_price).toFixed(2)}x payout)\n` +
+                                (p.tx_signature ? `Onchain Proof: https://solscan.io/tx/${p.tx_signature}\n\n` : '\n') +
+                                `Trade 24H music futures: https://musicx.fun`
+                              );
+                              window.open(`https://twitter.com/intent/tweet?text=${tweetText}`, '_blank');
                             }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              backgroundColor: '#000',
+                              border: '1px solid rgba(255, 255, 255, 0.25)',
+                              color: '#fff',
+                              padding: '2px 8px',
+                              borderRadius: '4px',
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              cursor: 'pointer'
+                            }}
+                            title="Share on X / Twitter"
                           >
-                            Solscan <ArrowUpRight size={11} />
-                          </a>
-                        )}
+                            <span>𝕏 Tweet Bet</span>
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -960,8 +1094,8 @@ export default function App() {
                   Wallet Balance: {solBalance.toFixed(3)} SOL
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
-                {[0.02, 0.05, 0.1, 0.25].map((amt) => (
+              <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.65rem' }}>
+                {[0.005, 0.02, 0.05, 0.1, 0.25].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setSolAmount(amt)}
@@ -972,7 +1106,7 @@ export default function App() {
                       backgroundColor: solAmount === amt ? '#10b981' : 'rgba(255, 255, 255, 0.06)',
                       border: 'none',
                       color: solAmount === amt ? '#000' : '#fff',
-                      fontSize: '0.8rem',
+                      fontSize: '0.76rem',
                       fontWeight: 700,
                       cursor: 'pointer'
                     }}
@@ -983,10 +1117,10 @@ export default function App() {
               </div>
               <input
                 type="number"
-                step="0.01"
+                step="0.001"
                 value={solAmount}
                 onChange={(e) => setSolAmount(Number(e.target.value))}
-                min={0.01}
+                min={0.001}
                 style={{
                   width: '100%',
                   padding: '0.75rem',
@@ -1048,7 +1182,153 @@ export default function App() {
         </div>
       )}
 
-      {/* Floating Toast with Solscan Link */}
+      {/* How It Works Modal */}
+      {showHowItWorks && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 70,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#121622',
+            border: '1px solid rgba(255, 255, 255, 0.12)',
+            borderRadius: '20px',
+            maxWidth: '520px',
+            width: '100%',
+            padding: '1.75rem',
+            position: 'relative',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <div style={{
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Disc3 size={18} color="#fff" />
+                </div>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>How MusicX Works</h3>
+              </div>
+              <button
+                onClick={() => setShowHowItWorks(false)}
+                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.25rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.85rem' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  color: '#10b981',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  1
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Pick a 24H Music Battle</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                    Trade daily head-to-head chart duels (e.g. Taylor Swift vs ADÉLA), #1 leaderboard holds, or New Music Friday streaming thresholds.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.85rem' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  color: '#10b981',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  2
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Stake Real SOL in Non-Custodial Escrow</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                    Your funds are locked directly into the public Solana Escrow Vault (<code style={{ color: '#93c5fd' }}>32WW...M8zG</code>). 100% transparent and visible on Solscan with zero platform custody risk.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.85rem' }}>
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
+                  border: '1px solid #10b981',
+                  color: '#10b981',
+                  fontWeight: 800,
+                  fontSize: '0.8rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}>
+                  3
+                </div>
+                <div>
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Automated Daily Settlement (10:00 UTC)</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                    When Spotify refreshes the official Daily Global Top 50 chart at 10:00 AM UTC, the automated oracle verifies the final rankings. Winners receive automated proportional payouts from the pool.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={() => setShowHowItWorks(false)}
+              style={{
+                width: '100%',
+                backgroundColor: '#10b981',
+                color: '#000',
+                border: 'none',
+                padding: '0.75rem',
+                borderRadius: '10px',
+                fontWeight: 800,
+                fontSize: '0.9rem',
+                cursor: 'pointer'
+              }}
+            >
+              Got it, let's trade!
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Floating Toast with Solscan Link & Tweet Button */}
       {toastMsg && (
         <div style={{
           position: 'fixed',
@@ -1075,9 +1355,32 @@ export default function App() {
               href={toastMsg.link}
               target="_blank"
               rel="noreferrer"
-              style={{ color: '#60a5fa', marginLeft: '6px', display: 'flex', alignItems: 'center' }}
+              style={{ color: '#60a5fa', marginLeft: '4px', display: 'flex', alignItems: 'center' }}
             >
               Solscan <ArrowUpRight size={13} />
+            </a>
+          )}
+          {toastMsg.tweetText && (
+            <a
+              href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(toastMsg.tweetText)}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                backgroundColor: '#000',
+                color: '#fff',
+                padding: '3px 9px',
+                borderRadius: '6px',
+                fontSize: '0.74rem',
+                fontWeight: 700,
+                textDecoration: 'none',
+                marginLeft: '8px',
+                border: '1px solid rgba(255, 255, 255, 0.3)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '3px'
+              }}
+            >
+              <span>𝕏 Tweet Bet</span>
             </a>
           )}
         </div>
