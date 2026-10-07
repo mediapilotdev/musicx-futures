@@ -496,20 +496,20 @@ export default function App() {
                               style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
-                                gap: '4px',
-                                fontSize: '0.68rem',
-                                color: '#38bdf8',
-                                backgroundColor: 'rgba(56, 189, 248, 0.1)',
-                                padding: '3px 7px',
+                                gap: '5px',
+                                fontSize: '0.7rem',
+                                color: '#10b981',
+                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                padding: '4px 8px',
                                 borderRadius: '6px',
                                 textDecoration: 'none',
                                 fontWeight: 600,
-                                border: '1px solid rgba(56, 189, 248, 0.2)'
+                                border: '1px solid rgba(16, 185, 129, 0.25)'
                               }}
                             >
-                              <Newspaper size={11} />
-                              <span>{m.news_source || 'News'}: {m.news_title ? (m.news_title.length > 32 ? m.news_title.substring(0, 32) + '...' : m.news_title) : 'Read story'}</span>
-                              <ExternalLink size={10} />
+                              <BarChart3 size={12} color="#10b981" />
+                              <span>{m.news_title || `${m.news_source}: View Live Standings`}</span>
+                              <ExternalLink size={11} color="#10b981" />
                             </a>
                           )}
                         </div>
@@ -712,16 +712,20 @@ export default function App() {
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
-                        gap: '3px',
-                        fontSize: '0.7rem',
-                        color: '#38bdf8',
+                        gap: '4px',
+                        fontSize: '0.72rem',
+                        color: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
                         textDecoration: 'none',
-                        fontWeight: 600
+                        fontWeight: 600,
+                        border: '1px solid rgba(16, 185, 129, 0.25)'
                       }}
                     >
-                      <Newspaper size={11} />
-                      <span>{selectedMarket.news_source}: Related News</span>
-                      <ExternalLink size={10} />
+                      <BarChart3 size={11} color="#10b981" />
+                      <span>{selectedMarket.news_source}: Live Results</span>
+                      <ExternalLink size={10} color="#10b981" />
                     </a>
                   )}
                 </div>

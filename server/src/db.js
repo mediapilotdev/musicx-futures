@@ -73,45 +73,45 @@ try {
   const newsMappings = [
     {
       id: 'mkt_karol_no1',
-      news_title: 'Billboard: Karol G Dominates Global Streaming Charts With Latin Hit',
-      news_source: 'Billboard',
-      news_url: 'https://www.billboard.com/music/latin/karol-g-si-antes-te-hubiera-conocido-global-charts-1235715560/'
+      news_title: 'Spotify Global Daily: Live #1 Rank Tracker',
+      news_source: 'Spotify Charts',
+      news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest'
     },
     {
       id: 'mkt_gaga_bruno_top3',
-      news_title: 'Variety: Lady Gaga & Bruno Mars Smash Global Spotify Streaming Milestone',
-      news_source: 'Variety',
-      news_url: 'https://variety.com/2024/music/news/lady-gaga-bruno-mars-die-with-a-smile-spotify-milestone-1236151240/'
+      news_title: 'Spotify Global Top 50: Live Top 3 Standings',
+      news_source: 'Spotify Charts',
+      news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest'
     },
     {
       id: 'mkt_taylor_top5',
-      news_title: 'Billboard: Taylor Swift Retains Top 5 Hold on Spotify Global',
-      news_source: 'Billboard',
-      news_url: 'https://www.billboard.com/charts/hot-100/'
+      news_title: 'Spotify Global Top 50 Daily Real-Time Tracker',
+      news_source: 'Spotify Charts',
+      news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest'
     },
     {
       id: 'mkt_battle_billie_olivia',
-      news_title: 'Rolling Stone: The Gen-Z Pop Royalty Streaming Battle',
-      news_source: 'Rolling Stone',
-      news_url: 'https://www.rollingstone.com/music/music-news/billie-eilish-olivia-rodrigo-pop-charts-1234856012/'
+      news_title: 'Kworb Global Daily: Billie vs Olivia Rank Duel',
+      news_source: 'Kworb Charts',
+      news_url: 'https://kworb.net/spotify/country/global_daily.html'
     },
     {
       id: 'mkt_weeknd_top5',
-      news_title: 'Pitchfork: The Weeknd Unveils "Dancing in the Flames" Lead Single',
-      news_source: 'Pitchfork',
-      news_url: 'https://pitchfork.com/news/the-weeknd-shares-new-song-dancing-in-the-flames-listen/'
+      news_title: 'Spotify Global Daily: Top 10 Debuts & Surge',
+      news_source: 'Spotify Charts',
+      news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest'
     },
     {
       id: 'mkt_kendrick_notlikeus',
-      news_title: 'Complex: Kendrick Lamar Super Bowl Halftime Announcement Sparks Streaming Boost',
-      news_source: 'Complex',
-      news_url: 'https://www.complex.com/music/a/backwoodbum/kendrick-lamar-super-bowl-halftime-show-streams-increase'
+      news_title: 'Kworb Spotify Global: Real-time Daily Streams',
+      news_source: 'Kworb Tracker',
+      news_url: 'https://kworb.net/spotify/country/global_daily.html'
     },
     {
       id: 'mkt_sabrina_espresso',
-      news_title: 'NME: Sabrina Carpenter\'s "Espresso" Breaks Record for Fastest 1B Streams',
-      news_source: 'NME',
-      news_url: 'https://www.nme.com/news/music/sabrina-carpenter-espresso-fastest-1-billion-streams-spotify-3782012'
+      news_title: 'Spotify Global Daily: Top 10 Standings',
+      news_source: 'Spotify Charts',
+      news_url: 'https://charts.spotify.com/charts/view/regional-global-daily/latest'
     }
   ];
 
