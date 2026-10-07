@@ -29,6 +29,8 @@ interface Market {
   news_url?: string;
   news_title?: string;
   news_source?: string;
+  live_status_text?: string;
+  live_metric_verified?: boolean;
   yes_price: number;
   no_price: number;
   yes_pool_sol: number;
@@ -487,6 +489,24 @@ export default function App() {
                           <p style={{ fontSize: '0.74rem', color: '#9ca3af', margin: '0 0 0.45rem 0' }}>
                             {m.subtitle}
                           </p>
+
+                          {/* Live Oracle Current Standing */}
+                          {m.live_status_text && (
+                            <div style={{
+                              fontSize: '0.69rem',
+                              backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                              borderLeft: '2px solid #10b981',
+                              padding: '4px 7px',
+                              borderRadius: '0 6px 6px 0',
+                              marginBottom: '0.45rem',
+                              color: '#d1d5db',
+                              lineHeight: 1.3
+                            }}>
+                              <span style={{ color: '#10b981', fontWeight: 700, marginRight: '4px' }}>● LIVE ORACLE:</span>
+                              {m.live_status_text}
+                            </div>
+                          )}
+
                           {m.news_url && (
                             <a
                               href={m.news_url}
@@ -508,7 +528,7 @@ export default function App() {
                               }}
                             >
                               <BarChart3 size={12} color="#10b981" />
-                              <span>{m.news_title || `${m.news_source}: View Live Standings`}</span>
+                              <span>{m.news_title || `${m.news_source}: View Official Live Standings`}</span>
                               <ExternalLink size={11} color="#10b981" />
                             </a>
                           )}
@@ -702,7 +722,7 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
                 <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', fontWeight: 800 }}>{selectedMarket.title}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                   <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>{selectedMarket.settlement_date}</span>
                   {selectedMarket.news_url && (
                     <a
@@ -724,11 +744,25 @@ export default function App() {
                       }}
                     >
                       <BarChart3 size={11} color="#10b981" />
-                      <span>{selectedMarket.news_source}: Live Results</span>
+                      <span>{selectedMarket.news_source}: Official Source</span>
                       <ExternalLink size={10} color="#10b981" />
                     </a>
                   )}
                 </div>
+                {selectedMarket.live_status_text && (
+                  <div style={{
+                    fontSize: '0.73rem',
+                    color: '#93c5fd',
+                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    padding: '5px 8px',
+                    borderRadius: '8px',
+                    lineHeight: 1.35
+                  }}>
+                    <strong style={{ color: '#60a5fa' }}>Current Live Standings: </strong>
+                    {selectedMarket.live_status_text}
+                  </div>
+                )}
               </div>
               <button
                 onClick={() => setSelectedMarket(null)}

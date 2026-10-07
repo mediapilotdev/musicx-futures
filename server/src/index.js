@@ -29,8 +29,25 @@ app.get('/health', (req, res) => {
   });
 });
 
+let cachedVerification = null;
+let lastVerificationTime = 0;
+
+async function getCachedOracleVerification() {
+  const now = Date.now();
+  if (cachedVerification && (now - lastVerificationTime < 60000)) {
+    return cachedVerification;
+  }
+  try {
+    cachedVerification = await runAutomatedSettlementCheck();
+    lastVerificationTime = now;
+  } catch (err) {
+    console.error('Oracle cache error:', err.message);
+  }
+  return cachedVerification;
+}
+
 // All Active 24H Prediction Markets
-app.get('/api/markets', (req, res) => {
+app.get('/api/markets', async (req, res) => {
   const category = req.query.category;
   let query = "SELECT * FROM markets WHERE status = 'OPEN'";
   let params = [];
@@ -42,7 +59,20 @@ app.get('/api/markets', (req, res) => {
   query += ' ORDER BY volume_sol DESC';
 
   const markets = db.prepare(query).all(...params);
-  res.json(markets);
+  const oracleData = await getCachedOracleVerification();
+  const vMap = new Map((oracleData?.verifications || []).map(v => [v.marketId, v]));
+
+  const enrichedMarkets = markets.map(m => {
+    const v = vMap.get(m.id);
+    return {
+      ...m,
+      live_status_text: v?.currentStatusText || null,
+      live_metric_verified: v?.liveMetricVerified ?? null,
+      oracle_details: v?.oracleDetails || null
+    };
+  });
+
+  res.json(enrichedMarkets);
 });
 
 // Place Prediction & Verify Onchain Transaction
@@ -177,8 +207,22 @@ app.post('/api/admin/resolve', async (req, res) => {
 
 // Daily Cron Status Check
 app.get('/api/settlement/status', async (req, res) => {
-  const check = await runAutomatedSettlementCheck();
-  res.json(check);
+  try {
+    const check = await runAutomatedSettlementCheck();
+    res.json(check);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Live Oracle Verification Endpoint (checks live Spotify data against all markets)
+app.get('/api/oracle/verify', async (req, res) => {
+  try {
+    const verification = await runAutomatedSettlementCheck();
+    res.json(verification);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
