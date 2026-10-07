@@ -185,11 +185,39 @@ export default function App() {
 
   const fetchSolBalance = async (pubkey: string) => {
     try {
-      const connection = new Connection(SOLANA_RPC, 'confirmed');
-      const balance = await connection.getBalance(new PublicKey(pubkey));
-      setSolBalance(+(balance / LAMPORTS_PER_SOL).toFixed(3));
+      // 1. Try phantom provider directly or server RPC proxy
+      const solana = (window as any).solana;
+      if (solana && typeof solana.request === 'function') {
+        const res = await solana.request({
+          method: 'getBalance',
+          params: [pubkey]
+        });
+        if (res && res.value !== undefined) {
+          setSolBalance(+(res.value / LAMPORTS_PER_SOL).toFixed(3));
+          return;
+        }
+      }
+
+      // 2. Fetch via backend RPC proxy
+      const rpcRes = await fetch(`${API_BASE}/api/solana/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'getBalance',
+          params: [pubkey, { commitment: 'confirmed' }]
+        })
+      });
+      if (rpcRes.ok) {
+        const rpcData = await rpcRes.json();
+        if (rpcData.result?.value !== undefined) {
+          setSolBalance(+(rpcData.result.value / LAMPORTS_PER_SOL).toFixed(3));
+          return;
+        }
+      }
     } catch {
-      setSolBalance(0.5);
+      // fallback
     }
   };
 
@@ -237,7 +265,11 @@ export default function App() {
 
       if (solana && solana.isPhantom) {
         try {
-          const connection = new Connection(SOLANA_RPC, 'confirmed');
+          // Fetch fresh blockhash from server proxy to avoid browser 403 Forbidden on public RPC
+          const bhRes = await fetch(`${API_BASE}/api/solana/blockhash`);
+          if (!bhRes.ok) throw new Error('Could not fetch Solana blockhash from node');
+          const { blockhash } = await bhRes.json();
+
           const transaction = new Transaction().add(
             SystemProgram.transfer({
               fromPubkey: new PublicKey(walletAddress),
@@ -246,7 +278,6 @@ export default function App() {
             })
           );
           transaction.feePayer = new PublicKey(walletAddress);
-          const { blockhash } = await connection.getLatestBlockhash();
           transaction.recentBlockhash = blockhash;
 
           const signed = await solana.signAndSendTransaction(transaction);
