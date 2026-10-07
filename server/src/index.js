@@ -400,10 +400,11 @@ app.get('/api/user/positions', (req, res) => {
       m.no_price
     FROM positions p
     JOIN markets m ON p.market_id = m.id
+    WHERE p.tx_signature NOT LIKE 'test_%'
   `;
   const params = [];
   if (wallet) {
-    query += ` WHERE p.wallet_address = ?`;
+    query += ` AND p.wallet_address = ?`;
     params.push(wallet);
   }
   query += ` ORDER BY p.created_at DESC`;
@@ -431,6 +432,7 @@ app.get('/api/user/positions', (req, res) => {
         m.no_price
       FROM positions p
       JOIN markets m ON p.market_id = m.id
+      WHERE p.tx_signature NOT LIKE 'test_%'
       ORDER BY p.created_at DESC
     `).all();
   }
