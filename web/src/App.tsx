@@ -9,10 +9,12 @@ import {
   Search, 
   Coins, 
   ShieldCheck,
-  Disc3,
   ExternalLink,
   ChevronRight,
-  ArrowUpRight
+  ArrowUpRight,
+  Newspaper,
+  BookOpen,
+  Disc3
 } from 'lucide-react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
@@ -24,6 +26,9 @@ interface Market {
   image_url: string;
   settlement_date: string;
   resolution_source: string;
+  news_url?: string;
+  news_title?: string;
+  news_source?: string;
   yes_price: number;
   no_price: number;
   yes_pool_sol: number;
@@ -479,9 +484,34 @@ export default function App() {
                           <h3 style={{ fontSize: '0.96rem', fontWeight: 700, margin: '0 0 0.25rem 0', lineHeight: 1.35 }}>
                             {m.title}
                           </h3>
-                          <p style={{ fontSize: '0.74rem', color: '#9ca3af', margin: 0 }}>
+                          <p style={{ fontSize: '0.74rem', color: '#9ca3af', margin: '0 0 0.45rem 0' }}>
                             {m.subtitle}
                           </p>
+                          {m.news_url && (
+                            <a
+                              href={m.news_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                fontSize: '0.68rem',
+                                color: '#38bdf8',
+                                backgroundColor: 'rgba(56, 189, 248, 0.1)',
+                                padding: '3px 7px',
+                                borderRadius: '6px',
+                                textDecoration: 'none',
+                                fontWeight: 600,
+                                border: '1px solid rgba(56, 189, 248, 0.2)'
+                              }}
+                            >
+                              <Newspaper size={11} />
+                              <span>{m.news_source || 'News'}: {m.news_title ? (m.news_title.length > 32 ? m.news_title.substring(0, 32) + '...' : m.news_title) : 'Read story'}</span>
+                              <ExternalLink size={10} />
+                            </a>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -672,7 +702,29 @@ export default function App() {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
                 <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', fontWeight: 800 }}>{selectedMarket.title}</h3>
-                <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>{selectedMarket.settlement_date}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: '#10b981', fontWeight: 700 }}>{selectedMarket.settlement_date}</span>
+                  {selectedMarket.news_url && (
+                    <a
+                      href={selectedMarket.news_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '3px',
+                        fontSize: '0.7rem',
+                        color: '#38bdf8',
+                        textDecoration: 'none',
+                        fontWeight: 600
+                      }}
+                    >
+                      <Newspaper size={11} />
+                      <span>{selectedMarket.news_source}: Related News</span>
+                      <ExternalLink size={10} />
+                    </a>
+                  )}
+                </div>
               </div>
               <button
                 onClick={() => setSelectedMarket(null)}

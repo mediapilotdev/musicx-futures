@@ -28,6 +28,9 @@ db.exec(`
     image_url TEXT NOT NULL,
     settlement_date TEXT NOT NULL,
     resolution_source TEXT NOT NULL,
+    news_url TEXT,
+    news_title TEXT,
+    news_source TEXT,
     status TEXT DEFAULT 'OPEN', -- 'OPEN', 'RESOLVED_YES', 'RESOLVED_NO'
     yes_price REAL DEFAULT 0.50,
     no_price REAL DEFAULT 0.50,
