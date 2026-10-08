@@ -12,14 +12,16 @@ import {
   ExternalLink,
   ChevronRight,
   ArrowUpRight,
-  Newspaper,
-  BookOpen,
   Disc3,
-  Timer,
-  Info,
-  Sparkles,
   HelpCircle,
-  Share2
+  Award,
+  Zap,
+  Activity,
+  Code,
+  Sparkles,
+  Layers,
+  Check,
+  ArrowRight
 } from 'lucide-react';
 import { Connection, PublicKey, Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
@@ -45,7 +47,25 @@ interface Market {
   volume_sol: number;
 }
 
-// Live Countdown Component
+interface OracleVerification {
+  marketId: string;
+  title: string;
+  resolutionSource: string;
+  oracleUrl: string;
+  liveMetricVerified: boolean;
+  currentStatusText: string;
+  oracleDetails?: any;
+}
+
+interface OracleStatusResponse {
+  timestamp: string;
+  oracleSource: string;
+  oracleStatus: string;
+  totalActiveMarkets: number;
+  verifications: OracleVerification[];
+}
+
+// Live Countdown Badge
 function LiveCountdownBadge({ targetIso }: { targetIso?: string }) {
   const [timeLeft, setTimeLeft] = useState<{ hours: number; minutes: number; seconds: number; isExpired: boolean }>({
     hours: 23,
@@ -103,60 +123,53 @@ function LiveCountdownBadge({ targetIso }: { targetIso?: string }) {
       gap: '4px',
       fontSize: '0.72rem',
       fontWeight: 800,
-      fontFamily: 'monospace',
-      color: '#10b981',
-      backgroundColor: 'rgba(16, 185, 129, 0.12)',
+      color: '#01b8ca',
+      backgroundColor: 'rgba(1, 184, 202, 0.12)',
+      border: '1px solid rgba(1, 184, 202, 0.28)',
       padding: '3px 8px',
-      borderRadius: '6px',
-      border: '1px solid rgba(16, 185, 129, 0.25)'
+      borderRadius: '6px'
     }}>
-      <Timer size={12} color="#10b981" />
-      <span>{String(timeLeft.hours).padStart(2, '0')}:{String(timeLeft.minutes).padStart(2, '0')}:{String(timeLeft.seconds).padStart(2, '0')}</span>
+      <Clock size={12} />
+      {String(timeLeft.hours).padStart(2, '0')}:
+      {String(timeLeft.minutes).padStart(2, '0')}:
+      {String(timeLeft.seconds).padStart(2, '0')}
     </span>
   );
 }
 
-interface Position {
-  position_id: string;
-  wallet_address: string;
-  prediction: string;
-  amount_sol: number;
-  shares: number;
-  avg_price: number;
-  tx_signature: string;
-  created_at: string;
-  market_id: string;
-  title: string;
-  image_url: string;
-  settlement_date: string;
-}
-
-// Onchain Escrow Vault on Solana Mainnet
 const ESCROW_VAULT_PUBLIC_KEY = new PublicKey('32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG');
 
 export default function App() {
   const [markets, setMarkets] = useState<Market[]>([]);
-  const [positions, setPositions] = useState<Position[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
+  const [tradeChoice, setTradeChoice] = useState<'YES' | 'NO'>('YES');
+  const [solAmount, setSolAmount] = useState<number>(0.005);
   const [walletConnected, setWalletConnected] = useState<boolean>(false);
   const [walletAddress, setWalletAddress] = useState<string>('');
   const [solBalance, setSolBalance] = useState<number>(0);
-  const [activeTab, setActiveTab] = useState<'markets' | 'portfolio'>('markets');
-  const [selectedMarket, setSelectedMarket] = useState<Market | null>(null);
-  const [tradeChoice, setTradeChoice] = useState<'YES' | 'NO'>('YES');
-  const [solAmount, setSolAmount] = useState<number>(0.05);
-  const [searchQuery, setSearchQuery] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'markets' | 'portfolio' | 'oracle'>('markets');
   const [toastMsg, setToastMsg] = useState<{ text: string; link?: string; tweetText?: string } | null>(null);
+  
+  // Modals
   const [showHowItWorks, setShowHowItWorks] = useState<boolean>(false);
+  const [showTokenomics, setShowTokenomics] = useState<boolean>(false);
+  const [showGrants, setShowGrants] = useState<boolean>(false);
+  
+  // Oracle status
+  const [oracleStatusData, setOracleStatusData] = useState<OracleStatusResponse | null>(null);
+  const [loadingOracle, setLoadingOracle] = useState<boolean>(false);
 
   const API_BASE = import.meta.env.VITE_API_URL || 'https://musicx-futures-api-production.up.railway.app';
-  const SOLANA_RPC = 'https://api.mainnet-beta.solana.com';
 
   useEffect(() => {
     fetchMarkets();
     fetchPositions();
     checkWallet();
+    fetchOracleStatus();
   }, [selectedCategory]);
 
   const checkWallet = async () => {
@@ -188,7 +201,6 @@ export default function App() {
 
   const fetchSolBalance = async (pubkey: string) => {
     try {
-      // 1. Try phantom provider directly or server RPC proxy
       const solana = (window as any).solana;
       if (solana && typeof solana.request === 'function') {
         const res = await solana.request({
@@ -201,7 +213,6 @@ export default function App() {
         }
       }
 
-      // 2. Fetch via backend RPC proxy
       const rpcRes = await fetch(`${API_BASE}/api/solana/rpc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -248,6 +259,20 @@ export default function App() {
     }
   };
 
+  const fetchOracleStatus = async () => {
+    setLoadingOracle(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/settlement/status`);
+      if (res.ok) {
+        setOracleStatusData(await res.json());
+      }
+    } catch {
+      // fallback
+    } finally {
+      setLoadingOracle(false);
+    }
+  };
+
   useEffect(() => {
     if (walletAddress) {
       fetchPositions();
@@ -277,7 +302,6 @@ export default function App() {
 
       if (solana && solana.isPhantom) {
         try {
-          // Fetch fresh blockhash from server proxy to avoid browser 403 Forbidden on public RPC
           const bhRes = await fetch(`${API_BASE}/api/solana/blockhash`);
           if (!bhRes.ok) throw new Error('Could not fetch Solana blockhash from node');
           const { blockhash } = await bhRes.json();
@@ -305,7 +329,6 @@ export default function App() {
         }
       }
 
-      // Record to backend database
       const res = await fetch(`${API_BASE}/api/predict/sol`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -320,14 +343,14 @@ export default function App() {
 
       if (res.ok) {
         setSolBalance((prev) => Math.max(0, +(prev - solAmount).toFixed(3)));
-        const tweet = `I just staked ${solAmount} SOL on ${tradeChoice} for "${selectedMarket.title}" on @MusicXFun! 🎵📈\n\nTrade 24H music futures on Solana: https://musicx.fun`;
+        const tweet = `I just staked ${solAmount} SOL on ${tradeChoice} for "${selectedMarket.title}" on @musicxdotfun! 🎵📈\n\nTrade 24H music futures on Solana: https://musicx.fun`;
         showToast(
           `🎉 Confirmed on Solana! Staked ${solAmount} SOL on ${tradeChoice}`,
           txSig ? `https://solscan.io/tx/${txSig}` : undefined,
           txSig ? tweet : undefined
         );
         setSelectedMarket(null);
-        setActiveTab('portfolio'); // Automatically switch to portfolio so user sees their bet
+        setActiveTab('portfolio');
         fetchMarkets();
         fetchPositions();
       } else {
@@ -348,62 +371,156 @@ export default function App() {
   );
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#090b10' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: '#0a0f1d', color: '#f8fafc' }}>
       
+      {/* 80% Community Token Pool Announcement Bar */}
+      <div style={{
+        background: 'linear-gradient(90deg, #0d1b2a 0%, #102a43 50%, #0d1b2a 100%)',
+        borderBottom: '1px solid rgba(1, 184, 202, 0.35)',
+        padding: '0.5rem 1rem',
+        fontSize: '0.78rem',
+        textAlign: 'center',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexWrap: 'wrap',
+        gap: '0.65rem'
+      }}>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+          <span style={{
+            backgroundColor: '#01b8ca',
+            color: '#0d1b2a',
+            fontSize: '0.65rem',
+            fontWeight: 900,
+            padding: '2px 7px',
+            borderRadius: '4px',
+            letterSpacing: '0.04em'
+          }}>
+            AIRDROP ALPHA
+          </span>
+          <span style={{ fontWeight: 700, color: '#f8fafc' }}>
+            💎 <strong>80% of MusicX Tokens Reserved for Users</strong> — Early test volume qualifies for 3x weighted retroactive share!
+          </span>
+        </div>
+        <button
+          onClick={() => setShowTokenomics(true)}
+          style={{
+            backgroundColor: 'rgba(1, 184, 202, 0.15)',
+            border: '1px solid #01b8ca',
+            color: '#00f5d4',
+            padding: '2px 10px',
+            borderRadius: '6px',
+            fontSize: '0.72rem',
+            fontWeight: 800,
+            cursor: 'pointer',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '4px'
+          }}
+        >
+          View Tokenomics <ArrowRight size={11} />
+        </button>
+      </div>
+
       {/* Top Navbar */}
       <header style={{
         position: 'sticky',
         top: 0,
         zIndex: 40,
-        backgroundColor: 'rgba(9, 11, 16, 0.92)',
-        backdropFilter: 'blur(16px)',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+        backgroundColor: 'rgba(10, 15, 29, 0.94)',
+        backdropFilter: 'blur(20px)',
+        borderBottom: '1px solid rgba(1, 184, 202, 0.18)',
         padding: '0.85rem 1.25rem',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'space-between'
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+        gap: '0.75rem'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
           <img
-            src="/favicon.svg"
+            src="/logo.png"
             alt="MusicX Logo"
             style={{
-              width: '38px',
-              height: '38px',
-              borderRadius: '11px',
-              boxShadow: '0 0 18px rgba(16, 185, 129, 0.4)'
+              width: '42px',
+              height: '42px',
+              borderRadius: '50%',
+              border: '2px solid #01b8ca',
+              boxShadow: '0 0 16px rgba(1, 184, 202, 0.45)'
             }}
           />
           <div>
-            <h1 style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
-              Music<span style={{ color: '#10b981' }}>X</span>
+            <h1 style={{ fontSize: '1.25rem', fontWeight: 900, letterSpacing: '-0.02em', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+              Music<span style={{ color: '#01b8ca' }}>X</span>
               <span style={{
                 fontSize: '0.62rem',
-                backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                color: '#10b981',
-                padding: '2px 7px',
+                backgroundColor: 'rgba(1, 184, 202, 0.15)',
+                color: '#00f5d4',
+                padding: '2px 8px',
                 borderRadius: '6px',
                 fontWeight: 800,
-                border: '1px solid rgba(16, 185, 129, 0.3)'
+                border: '1px solid rgba(1, 184, 202, 0.4)'
               }}>
-                MAINNET LIVE
+                SOLANA MAINNET
               </span>
             </h1>
-            <p style={{ fontSize: '0.72rem', color: '#9ca3af', margin: 0 }}>Onchain Spotify & Streaming Predictions on Solana</p>
+            <p style={{ fontSize: '0.72rem', color: '#94a3b8', margin: 0 }}>
+              24H Music Prediction Markets & Daily Streaming Futures
+            </p>
           </div>
         </div>
 
-        {/* Solana Wallet Connect & Vault Link */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+        {/* Action pills & links */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flexWrap: 'wrap' }}>
           <button
-            onClick={() => setShowHowItWorks(true)}
+            onClick={() => setShowTokenomics(true)}
+            style={{
+              backgroundColor: 'rgba(1, 184, 202, 0.1)',
+              border: '1px solid rgba(1, 184, 202, 0.3)',
+              color: '#00f5d4',
+              padding: '0.42rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Sparkles size={13} color="#00f5d4" />
+            <span>80% Token Pool</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('oracle'); fetchOracleStatus(); }}
+            style={{
+              backgroundColor: activeTab === 'oracle' ? 'rgba(1, 184, 202, 0.25)' : 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(1, 184, 202, 0.25)',
+              color: '#38bdf8',
+              padding: '0.42rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <Activity size={13} color="#38bdf8" />
+            <span>Live Oracle</span>
+          </button>
+
+          <button
+            onClick={() => setShowGrants(true)}
             style={{
               backgroundColor: 'rgba(255, 255, 255, 0.05)',
               border: '1px solid rgba(255, 255, 255, 0.12)',
-              color: '#d1d5db',
-              padding: '0.4rem 0.75rem',
+              color: '#cbd5e1',
+              padding: '0.42rem 0.75rem',
               borderRadius: '8px',
-              fontSize: '0.74rem',
+              fontSize: '0.75rem',
               fontWeight: 600,
               cursor: 'pointer',
               display: 'flex',
@@ -411,8 +528,28 @@ export default function App() {
               gap: '4px'
             }}
           >
-            <HelpCircle size={13} color="#10b981" />
-            <span>How It Works</span>
+            <Award size={13} color="#01b8ca" />
+            <span>Hackathons & Grants</span>
+          </button>
+
+          <button
+            onClick={() => setShowHowItWorks(true)}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.05)',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              color: '#cbd5e1',
+              padding: '0.42rem 0.75rem',
+              borderRadius: '8px',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
+            }}
+          >
+            <HelpCircle size={13} color="#01b8ca" />
+            <span>Rules</span>
           </button>
 
           <a
@@ -421,38 +558,39 @@ export default function App() {
             rel="noreferrer"
             style={{
               fontSize: '0.72rem',
-              color: '#9ca3af',
+              color: '#94a3b8',
               textDecoration: 'none',
               display: 'flex',
               alignItems: 'center',
-              gap: '3px',
+              gap: '4px',
               backgroundColor: 'rgba(255, 255, 255, 0.04)',
-              padding: '0.35rem 0.65rem',
+              padding: '0.42rem 0.65rem',
               borderRadius: '8px',
               border: '1px solid rgba(255, 255, 255, 0.08)'
             }}
-            title="View Onchain Escrow Vault on Solscan"
+            title="View Non-Custodial Vault on Solscan"
           >
-            <ShieldCheck size={13} color="#10b981" />
+            <ShieldCheck size={13} color="#01b8ca" />
             <span style={{ fontFamily: 'monospace' }}>Vault 32WW...M8zG</span>
             <ExternalLink size={11} />
           </a>
 
+          {/* Solana Wallet Connect */}
           {walletConnected ? (
             <div style={{
               display: 'flex',
               alignItems: 'center',
               gap: '0.6rem',
-              backgroundColor: 'rgba(255, 255, 255, 0.05)',
-              border: '1px solid rgba(16, 185, 129, 0.35)',
+              backgroundColor: 'rgba(1, 184, 202, 0.08)',
+              border: '1px solid rgba(1, 184, 202, 0.35)',
               padding: '0.45rem 0.95rem',
               borderRadius: '9999px'
             }}>
-              <Coins size={15} color="#10b981" />
-              <span style={{ fontSize: '0.85rem', fontWeight: 700, fontFamily: 'monospace', color: '#f3f4f6' }}>
+              <Coins size={15} color="#00f5d4" />
+              <span style={{ fontSize: '0.85rem', fontWeight: 800, fontFamily: 'monospace', color: '#f8fafc' }}>
                 {solBalance.toFixed(2)} SOL
               </span>
-              <span style={{ fontSize: '0.72rem', color: '#9ca3af', borderLeft: '1px solid rgba(255, 255, 255, 0.15)', paddingLeft: '8px' }}>
+              <span style={{ fontSize: '0.72rem', color: '#94a3b8', borderLeft: '1px solid rgba(255, 255, 255, 0.15)', paddingLeft: '8px' }}>
                 {walletAddress.slice(0, 4)}...{walletAddress.slice(-4)}
               </span>
             </div>
@@ -460,18 +598,19 @@ export default function App() {
             <button
               onClick={connectWallet}
               style={{
-                backgroundColor: '#10b981',
-                color: '#000',
+                backgroundColor: '#01b8ca',
+                color: '#0a0f1d',
                 border: 'none',
                 padding: '0.5rem 1.15rem',
                 borderRadius: '9999px',
                 fontSize: '0.84rem',
-                fontWeight: 800,
+                fontWeight: 900,
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.4rem',
-                boxShadow: '0 0 18px rgba(16, 185, 129, 0.4)'
+                boxShadow: '0 0 18px rgba(1, 184, 202, 0.45)',
+                transition: 'all 0.2s ease'
               }}
             >
               <Wallet size={15} /> Connect Phantom
@@ -481,14 +620,14 @@ export default function App() {
       </header>
 
       {/* Main Container */}
-      <main style={{ flex: 1, maxWidth: '1080px', margin: '0 auto', width: '100%', padding: '1.25rem 1rem' }}>
+      <main style={{ flex: 1, maxWidth: '1100px', margin: '0 auto', width: '100%', padding: '1.25rem 1rem' }}>
         
         {/* Live Onchain Activity Ticker */}
         <div style={{
-          backgroundColor: 'rgba(16, 185, 129, 0.06)',
-          border: '1px solid rgba(16, 185, 129, 0.22)',
+          backgroundColor: 'rgba(13, 27, 42, 0.75)',
+          border: '1px solid rgba(1, 184, 202, 0.25)',
           borderRadius: '12px',
-          padding: '0.55rem 1rem',
+          padding: '0.65rem 1rem',
           marginBottom: '1.25rem',
           display: 'flex',
           alignItems: 'center',
@@ -503,13 +642,13 @@ export default function App() {
               width: '8px',
               height: '8px',
               borderRadius: '50%',
-              backgroundColor: '#10b981',
-              boxShadow: '0 0 8px #10b981',
+              backgroundColor: '#00f5d4',
+              boxShadow: '0 0 8px #00f5d4',
               display: 'inline-block'
             }} />
-            <strong style={{ color: '#10b981', letterSpacing: '0.04em' }}>LIVE ONCHAIN BETS:</strong>
-            <span style={{ color: '#e5e7eb' }}>
-              Wallet <code style={{ color: '#93c5fd', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '2px 5px', borderRadius: '4px' }}>6owU...qEWr</code> staked <strong>0.001 SOL</strong> on <span style={{ color: '#10b981', fontWeight: 700 }}>YES</span> for <em>Taylor Swift vs ADÉLA</em> (@ 59¢)
+            <strong style={{ color: '#00f5d4', letterSpacing: '0.04em' }}>LIVE ONCHAIN BET:</strong>
+            <span style={{ color: '#e2e8f0' }}>
+              Wallet <code style={{ color: '#38bdf8', backgroundColor: 'rgba(255, 255, 255, 0.06)', padding: '2px 5px', borderRadius: '4px' }}>6owU...qEWr</code> staked <strong>0.001 SOL</strong> on <span style={{ color: '#00f5d4', fontWeight: 800 }}>YES</span> for <em>Taylor Swift vs ADÉLA</em> (@ 59¢)
             </span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -518,15 +657,16 @@ export default function App() {
               target="_blank"
               rel="noreferrer"
               style={{
-                color: '#60a5fa',
+                color: '#38bdf8',
                 textDecoration: 'none',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '3px',
-                fontWeight: 600,
-                backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                fontWeight: 700,
+                backgroundColor: 'rgba(56, 189, 248, 0.1)',
                 padding: '2px 8px',
-                borderRadius: '6px'
+                borderRadius: '6px',
+                border: '1px solid rgba(56, 189, 248, 0.25)'
               }}
             >
               Verified on Solscan <ArrowUpRight size={11} />
@@ -534,7 +674,7 @@ export default function App() {
           </div>
         </div>
 
-        {/* Categories Bar */}
+        {/* Categories & Views Navigation */}
         <div style={{
           display: 'flex',
           flexWrap: 'wrap',
@@ -542,7 +682,7 @@ export default function App() {
           justifyContent: 'space-between',
           gap: '1rem',
           marginBottom: '1.25rem',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.08)',
+          borderBottom: '1px solid rgba(1, 184, 202, 0.15)',
           paddingBottom: '0.85rem'
         }}>
           <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '4px' }}>
@@ -555,17 +695,18 @@ export default function App() {
             ].map(cat => (
               <button
                 key={cat.id}
-                onClick={() => setSelectedCategory(cat.id)}
+                onClick={() => { setSelectedCategory(cat.id); setActiveTab('markets'); }}
                 style={{
-                  backgroundColor: selectedCategory === cat.id ? '#10b981' : 'rgba(255, 255, 255, 0.05)',
-                  color: selectedCategory === cat.id ? '#000' : '#d1d5db',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  backgroundColor: selectedCategory === cat.id && activeTab === 'markets' ? '#01b8ca' : 'rgba(255, 255, 255, 0.05)',
+                  color: selectedCategory === cat.id && activeTab === 'markets' ? '#0a0f1d' : '#cbd5e1',
+                  border: '1px solid ' + (selectedCategory === cat.id && activeTab === 'markets' ? '#01b8ca' : 'rgba(255, 255, 255, 0.08)'),
                   padding: '0.45rem 0.95rem',
                   borderRadius: '9999px',
                   fontSize: '0.82rem',
-                  fontWeight: 700,
+                  fontWeight: 800,
                   cursor: 'pointer',
-                  whiteSpace: 'nowrap'
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease'
                 }}
               >
                 {cat.label}
@@ -577,32 +718,47 @@ export default function App() {
             <button
               onClick={() => setActiveTab('markets')}
               style={{
-                backgroundColor: activeTab === 'markets' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                color: '#fff',
-                border: 'none',
+                backgroundColor: activeTab === 'markets' ? 'rgba(1, 184, 202, 0.2)' : 'transparent',
+                color: activeTab === 'markets' ? '#00f5d4' : '#94a3b8',
+                border: '1px solid ' + (activeTab === 'markets' ? 'rgba(1, 184, 202, 0.4)' : 'transparent'),
                 padding: '0.4rem 0.85rem',
                 borderRadius: '8px',
                 fontSize: '0.82rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer'
               }}
             >
-              Browse ({markets.length})
+              Markets ({markets.length})
             </button>
             <button
               onClick={() => setActiveTab('portfolio')}
               style={{
-                backgroundColor: activeTab === 'portfolio' ? 'rgba(255, 255, 255, 0.15)' : 'transparent',
-                color: '#fff',
-                border: 'none',
+                backgroundColor: activeTab === 'portfolio' ? 'rgba(1, 184, 202, 0.2)' : 'transparent',
+                color: activeTab === 'portfolio' ? '#00f5d4' : '#94a3b8',
+                border: '1px solid ' + (activeTab === 'portfolio' ? 'rgba(1, 184, 202, 0.4)' : 'transparent'),
                 padding: '0.4rem 0.85rem',
                 borderRadius: '8px',
                 fontSize: '0.82rem',
-                fontWeight: 600,
+                fontWeight: 700,
                 cursor: 'pointer'
               }}
             >
               My Bets ({positions.length})
+            </button>
+            <button
+              onClick={() => { setActiveTab('oracle'); fetchOracleStatus(); }}
+              style={{
+                backgroundColor: activeTab === 'oracle' ? 'rgba(1, 184, 202, 0.2)' : 'transparent',
+                color: activeTab === 'oracle' ? '#00f5d4' : '#94a3b8',
+                border: '1px solid ' + (activeTab === 'oracle' ? 'rgba(1, 184, 202, 0.4)' : 'transparent'),
+                padding: '0.4rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.82rem',
+                fontWeight: 700,
+                cursor: 'pointer'
+              }}
+            >
+              Oracle Engine
             </button>
           </div>
         </div>
@@ -611,7 +767,7 @@ export default function App() {
         {activeTab === 'markets' && (
           <div>
             <div style={{ position: 'relative', marginBottom: '1.25rem' }}>
-              <Search size={18} color="#6b7280" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
+              <Search size={18} color="#64748b" style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)' }} />
               <input
                 type="text"
                 placeholder="Search daily chart battles, new singles, or artist duels..."
@@ -620,8 +776,8 @@ export default function App() {
                 style={{
                   width: '100%',
                   padding: '0.75rem 1rem 0.75rem 2.85rem',
-                  backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                  border: '1px solid rgba(255, 255, 255, 0.08)',
+                  backgroundColor: 'rgba(17, 34, 54, 0.65)',
+                  border: '1px solid rgba(1, 184, 202, 0.2)',
                   borderRadius: '12px',
                   color: '#fff',
                   fontSize: '0.9rem',
@@ -634,7 +790,7 @@ export default function App() {
             <div style={{
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-              gap: '1.15rem'
+              gap: '1.25rem'
             }}>
               {filteredMarkets.map((m) => {
                 const yesPercent = Math.round(m.yes_price * 100);
@@ -646,23 +802,23 @@ export default function App() {
                     className="glass-card"
                     style={{
                       borderRadius: '16px',
-                      padding: '1.2rem',
+                      padding: '1.25rem',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
-                      backgroundColor: 'rgba(18, 22, 34, 0.85)',
-                      border: '1px solid rgba(255, 255, 255, 0.08)'
+                      backgroundColor: 'rgba(17, 34, 54, 0.85)',
+                      border: '1px solid rgba(1, 184, 202, 0.16)'
                     }}
                   >
                     <div>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.85rem' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                           <LiveCountdownBadge targetIso={m.settlement_timestamp} />
-                          <span style={{ fontSize: '0.7rem', color: '#9ca3af' }}>
+                          <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
                             {m.settlement_date}
                           </span>
                         </div>
-                        <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontFamily: 'monospace' }}>
+                        <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontFamily: 'monospace' }}>
                           Vol: {m.volume_sol > 0 ? (m.volume_sol < 0.01 ? m.volume_sol.toFixed(3) : m.volume_sol.toFixed(2)) : '0.00'} SOL
                         </span>
                       </div>
@@ -672,34 +828,34 @@ export default function App() {
                           src={m.image_url}
                           alt={m.title}
                           style={{
-                            width: '56px',
-                            height: '56px',
+                            width: '58px',
+                            height: '58px',
                             borderRadius: '12px',
                             objectFit: 'cover',
-                            border: '1px solid rgba(255, 255, 255, 0.1)'
+                            border: '1px solid rgba(1, 184, 202, 0.25)'
                           }}
                         />
                         <div style={{ flex: 1 }}>
-                          <h3 style={{ fontSize: '0.96rem', fontWeight: 700, margin: '0 0 0.25rem 0', lineHeight: 1.35 }}>
+                          <h3 style={{ fontSize: '0.98rem', fontWeight: 800, margin: '0 0 0.25rem 0', lineHeight: 1.35 }}>
                             {m.title}
                           </h3>
-                          <p style={{ fontSize: '0.74rem', color: '#9ca3af', margin: '0 0 0.45rem 0' }}>
+                          <p style={{ fontSize: '0.75rem', color: '#94a3b8', margin: '0 0 0.45rem 0', lineHeight: 1.3 }}>
                             {m.subtitle}
                           </p>
 
                           {/* Live Oracle Current Standing */}
                           {m.live_status_text && (
                             <div style={{
-                              fontSize: '0.69rem',
-                              backgroundColor: 'rgba(255, 255, 255, 0.04)',
-                              borderLeft: '2px solid #10b981',
-                              padding: '4px 7px',
+                              fontSize: '0.7rem',
+                              backgroundColor: 'rgba(1, 184, 202, 0.08)',
+                              borderLeft: '2px solid #01b8ca',
+                              padding: '4px 8px',
                               borderRadius: '0 6px 6px 0',
                               marginBottom: '0.45rem',
-                              color: '#d1d5db',
+                              color: '#e2e8f0',
                               lineHeight: 1.3
                             }}>
-                              <span style={{ color: '#10b981', fontWeight: 700, marginRight: '4px' }}>● LIVE ORACLE:</span>
+                              <span style={{ color: '#00f5d4', fontWeight: 800, marginRight: '4px' }}>● LIVE ORACLE:</span>
                               {m.live_status_text}
                             </div>
                           )}
@@ -715,18 +871,18 @@ export default function App() {
                                 alignItems: 'center',
                                 gap: '5px',
                                 fontSize: '0.7rem',
-                                color: '#10b981',
-                                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                                color: '#01b8ca',
+                                backgroundColor: 'rgba(1, 184, 202, 0.12)',
                                 padding: '4px 8px',
                                 borderRadius: '6px',
                                 textDecoration: 'none',
-                                fontWeight: 600,
-                                border: '1px solid rgba(16, 185, 129, 0.25)'
+                                fontWeight: 700,
+                                border: '1px solid rgba(1, 184, 202, 0.3)'
                               }}
                             >
-                              <BarChart3 size={12} color="#10b981" />
-                              <span>{m.news_title || `${m.news_source}: View Official Live Standings`}</span>
-                              <ExternalLink size={11} color="#10b981" />
+                              <BarChart3 size={12} color="#01b8ca" />
+                              <span>{m.news_title || `${m.news_source}: Official Daily Chart`}</span>
+                              <ExternalLink size={11} color="#01b8ca" />
                             </a>
                           )}
                         </div>
@@ -735,23 +891,23 @@ export default function App() {
 
                     {/* Visual Probability Meter */}
                     <div style={{ margin: '0.45rem 0 0.75rem 0' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.73rem', fontWeight: 700, marginBottom: '5px' }}>
-                        <span style={{ color: '#10b981' }}>{yesPercent}% YES ({yesPercent}¢)</span>
-                        <span style={{ color: '#ef4444' }}>{noPercent}% NO ({noPercent}¢)</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', fontWeight: 800, marginBottom: '5px' }}>
+                        <span style={{ color: '#00f5d4' }}>{yesPercent}% YES ({yesPercent}¢)</span>
+                        <span style={{ color: '#f43f5e' }}>{noPercent}% NO ({noPercent}¢)</span>
                       </div>
                       <div style={{
                         width: '100%',
                         height: '6px',
                         borderRadius: '9999px',
-                        backgroundColor: 'rgba(239, 68, 68, 0.35)',
+                        backgroundColor: 'rgba(244, 63, 94, 0.35)',
                         overflow: 'hidden',
                         display: 'flex'
                       }}>
                         <div style={{
                           width: `${yesPercent}%`,
                           height: '100%',
-                          backgroundColor: '#10b981',
-                          boxShadow: '0 0 8px rgba(16, 185, 129, 0.6)',
+                          backgroundColor: '#01b8ca',
+                          boxShadow: '0 0 10px rgba(1, 184, 202, 0.8)',
                           transition: 'width 0.4s ease'
                         }} />
                       </div>
@@ -765,16 +921,17 @@ export default function App() {
                           style={{
                             padding: '0.65rem 0.5rem',
                             borderRadius: '10px',
-                            border: '1px solid rgba(16, 185, 129, 0.3)',
-                            backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                            border: '1px solid rgba(1, 184, 202, 0.4)',
+                            backgroundColor: 'rgba(1, 184, 202, 0.12)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            color: '#fff'
+                            color: '#fff',
+                            transition: 'all 0.15s ease'
                           }}
                         >
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#10b981' }}>YES</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 900, color: '#00f5d4' }}>YES</span>
                           <span style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace' }}>{yesPercent}¢</span>
                         </button>
 
@@ -783,23 +940,24 @@ export default function App() {
                           style={{
                             padding: '0.65rem 0.5rem',
                             borderRadius: '10px',
-                            border: '1px solid rgba(239, 68, 68, 0.3)',
-                            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                            border: '1px solid rgba(244, 63, 94, 0.4)',
+                            backgroundColor: 'rgba(244, 63, 94, 0.12)',
                             cursor: 'pointer',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'space-between',
-                            color: '#fff'
+                            color: '#fff',
+                            transition: 'all 0.15s ease'
                           }}
                         >
-                          <span style={{ fontSize: '0.82rem', fontWeight: 800, color: '#ef4444' }}>NO</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 900, color: '#f43f5e' }}>NO</span>
                           <span style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace' }}>{noPercent}¢</span>
                         </button>
                       </div>
 
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#6b7280' }}>
-                        <span>Oracle: Spotify Charts</span>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#10b981', fontWeight: 600 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.7rem', color: '#94a3b8' }}>
+                        <span>Oracle: Spotify Daily</span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '2px', color: '#01b8ca', fontWeight: 700 }}>
                           Solana Escrow <ChevronRight size={12} />
                         </span>
                       </div>
@@ -814,62 +972,71 @@ export default function App() {
         {/* Tab 2: User Bets */}
         {activeTab === 'portfolio' && (
           <div>
-            <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem' }}>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: 800, marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
               Your Active Onchain Bets
             </h2>
             {positions.length === 0 ? (
               <div style={{
                 textAlign: 'center',
                 padding: '3rem 1rem',
-                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                backgroundColor: 'rgba(17, 34, 54, 0.5)',
                 borderRadius: '16px',
-                border: '1px dashed rgba(255, 255, 255, 0.1)'
+                border: '1px dashed rgba(1, 184, 202, 0.25)'
               }}>
-                <Disc3 size={36} color="#6b7280" style={{ marginBottom: '0.75rem' }} />
-                <p style={{ fontSize: '1rem', color: '#9ca3af', margin: 0 }}>No active bets placed yet.</p>
+                <Disc3 size={38} color="#01b8ca" style={{ marginBottom: '0.75rem', opacity: 0.6 }} />
+                <p style={{ fontSize: '1rem', color: '#cbd5e1', margin: 0 }}>No active bets placed yet.</p>
+                <p style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.4rem' }}>
+                  Connect your wallet and pick any 24H music market to start earning 80% retroactive airdrop shares!
+                </p>
                 <button
                   onClick={() => setActiveTab('markets')}
                   style={{
-                    marginTop: '1rem',
-                    backgroundColor: '#10b981',
+                    marginTop: '1.25rem',
+                    backgroundColor: '#01b8ca',
                     border: 'none',
-                    color: '#000',
-                    padding: '0.5rem 1.25rem',
+                    color: '#0a0f1d',
+                    padding: '0.55rem 1.35rem',
                     borderRadius: '8px',
-                    fontWeight: 700,
+                    fontWeight: 800,
                     cursor: 'pointer'
                   }}
                 >
-                  Explore 24H Markets
+                  Browse 24H Markets
                 </button>
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
-                {positions.map((p) => (
+                {positions.map((p, idx) => (
                   <div
-                    key={p.position_id}
+                    key={p.id || idx}
                     className="glass-card"
                     style={{
                       borderRadius: '14px',
                       padding: '1rem 1.25rem',
                       display: 'flex',
-                      flexWrap: 'wrap',
                       alignItems: 'center',
                       justifyContent: 'space-between',
-                      gap: '0.75rem'
+                      flexWrap: 'wrap',
+                      gap: '0.85rem',
+                      backgroundColor: 'rgba(17, 34, 54, 0.85)',
+                      border: '1px solid rgba(1, 184, 202, 0.2)'
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <img
-                        src={p.image_url}
-                        alt={p.title}
-                        style={{ width: '48px', height: '48px', borderRadius: '12px', objectFit: 'cover' }}
-                      />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      {p.image_url && (
+                        <img
+                          src={p.image_url}
+                          alt={p.title}
+                          style={{ width: '46px', height: '46px', borderRadius: '10px', objectFit: 'cover' }}
+                        />
+                      )}
                       <div>
-                        <h4 style={{ margin: 0, fontSize: '0.95rem', fontWeight: 700 }}>{p.title}</h4>
-                        <span style={{ fontSize: '0.75rem', color: '#9ca3af' }}>
-                          Settlement: {p.settlement_date}
-                        </span>
+                        <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.94rem', fontWeight: 800 }}>{p.title}</h4>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.72rem', color: '#94a3b8' }}>
+                          <span>Market ID: <code style={{ color: '#cbd5e1' }}>{p.market_id}</code></span>
+                          <span>•</span>
+                          <span>{p.created_at ? new Date(p.created_at).toLocaleTimeString() : 'Recent'}</span>
+                        </div>
                       </div>
                     </div>
 
@@ -877,20 +1044,20 @@ export default function App() {
                       <div style={{
                         padding: '0.35rem 0.85rem',
                         borderRadius: '8px',
-                        backgroundColor: p.prediction === 'YES' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                        border: `1px solid ${p.prediction === 'YES' ? '#10b981' : '#ef4444'}`,
-                        color: p.prediction === 'YES' ? '#10b981' : '#ef4444',
-                        fontWeight: 800,
+                        backgroundColor: p.prediction === 'YES' ? 'rgba(1, 184, 202, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                        border: `1px solid ${p.prediction === 'YES' ? '#01b8ca' : '#f43f5e'}`,
+                        color: p.prediction === 'YES' ? '#00f5d4' : '#f43f5e',
+                        fontWeight: 900,
                         fontSize: '0.85rem'
                       }}>
                         {p.prediction} ({(p.avg_price * 100).toFixed(0)}¢)
                       </div>
 
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: '0.9rem', fontWeight: 800, fontFamily: 'monospace', color: '#10b981' }}>
+                        <div style={{ fontSize: '0.92rem', fontWeight: 900, fontFamily: 'monospace', color: '#00f5d4' }}>
                           {p.amount_sol} SOL Staked
                         </div>
-                        <div style={{ fontSize: '0.72rem', color: '#9ca3af', margin: '2px 0 4px 0' }}>
+                        <div style={{ fontSize: '0.72rem', color: '#94a3b8', margin: '2px 0 4px 0' }}>
                           Est. Return: {(p.amount_sol / p.avg_price).toFixed(3)} SOL ({(1 / p.avg_price).toFixed(2)}x)
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '8px' }}>
@@ -901,12 +1068,12 @@ export default function App() {
                               rel="noreferrer"
                               style={{
                                 fontSize: '0.7rem',
-                                color: '#60a5fa',
+                                color: '#38bdf8',
                                 textDecoration: 'none',
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '2px',
-                                backgroundColor: 'rgba(96, 165, 250, 0.1)',
+                                backgroundColor: 'rgba(56, 189, 248, 0.1)',
                                 padding: '2px 7px',
                                 borderRadius: '4px'
                               }}
@@ -917,7 +1084,7 @@ export default function App() {
                           <button
                             onClick={() => {
                               const tweetText = encodeURIComponent(
-                                `I just staked ${p.amount_sol} SOL on ${p.prediction} for "${p.title}" on @MusicXFun! 🎵📈\n\n` +
+                                `I just staked ${p.amount_sol} SOL on ${p.prediction} for "${p.title}" on @musicxdotfun! 🎵📈\n\n` +
                                 `Odds: ${(p.avg_price * 100).toFixed(0)}¢ (${(1 / p.avg_price).toFixed(2)}x payout)\n` +
                                 (p.tx_signature ? `Onchain Proof: https://solscan.io/tx/${p.tx_signature}\n\n` : '\n') +
                                 `Trade 24H music futures: https://musicx.fun`
@@ -951,6 +1118,166 @@ export default function App() {
           </div>
         )}
 
+        {/* Tab 3: Oracle Status & Settlement Transparency */}
+        {activeTab === 'oracle' && (
+          <div>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '1rem',
+              flexWrap: 'wrap',
+              gap: '0.5rem'
+            }}>
+              <div>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 800, margin: '0 0 0.2rem 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Activity size={20} color="#00f5d4" />
+                  Live Spotify Oracle & Automated Settlement Engine
+                </h2>
+                <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: 0 }}>
+                  Real-time verifiable chart data fed into Solana non-custodial escrow settlement.
+                </p>
+              </div>
+              <button
+                onClick={fetchOracleStatus}
+                style={{
+                  backgroundColor: 'rgba(1, 184, 202, 0.15)',
+                  border: '1px solid #01b8ca',
+                  color: '#00f5d4',
+                  padding: '0.4rem 0.85rem',
+                  borderRadius: '8px',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer'
+                }}
+              >
+                {loadingOracle ? 'Refreshing...' : '🔄 Refresh Oracle Feed'}
+              </button>
+            </div>
+
+            {/* Oracle Architecture Overview Cards */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gap: '1rem',
+              marginBottom: '1.5rem'
+            }}>
+              <div style={{
+                backgroundColor: 'rgba(17, 34, 54, 0.75)',
+                border: '1px solid rgba(1, 184, 202, 0.2)',
+                borderRadius: '12px',
+                padding: '1rem'
+              }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>ORACLE DATA SOURCE</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#00f5d4', marginTop: '4px' }}>
+                  Spotify Daily Global Top 200
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>
+                  Mirrored via Kworb / Spotify charts daily at 10:00 UTC
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(17, 34, 54, 0.75)',
+                border: '1px solid rgba(1, 184, 202, 0.2)',
+                borderRadius: '12px',
+                padding: '1rem'
+              }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>ORACLE ENGINE STATUS</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#38bdf8', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#00f5d4' }} />
+                  {oracleStatusData?.oracleStatus || 'ONLINE_ACTIVE'}
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>
+                  Evaluation cycle every 12H • Auto-payout enabled
+                </div>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(17, 34, 54, 0.75)',
+                border: '1px solid rgba(1, 184, 202, 0.2)',
+                borderRadius: '12px',
+                padding: '1rem'
+              }}>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8', fontWeight: 700 }}>SETTLEMENT ESCROW</span>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#cbd5e1', marginTop: '4px', fontFamily: 'monospace' }}>
+                  32WW...M8zG
+                </div>
+                <div style={{ fontSize: '0.72rem', color: '#94a3b8', marginTop: '4px' }}>
+                  Public non-custodial Solana vault with Solscan auditing
+                </div>
+              </div>
+            </div>
+
+            {/* Oracle Verification Standings */}
+            <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.85rem', color: '#cbd5e1' }}>
+              Current Oracle Standings ({oracleStatusData?.verifications?.length || 0} Markets Monitored)
+            </h3>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              {oracleStatusData?.verifications?.map((v, i) => (
+                <div
+                  key={v.marketId || i}
+                  style={{
+                    backgroundColor: 'rgba(17, 34, 54, 0.85)',
+                    border: '1px solid rgba(1, 184, 202, 0.16)',
+                    borderRadius: '12px',
+                    padding: '1rem 1.2rem',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '0.75rem'
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: '260px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 800,
+                        padding: '2px 6px',
+                        borderRadius: '4px',
+                        backgroundColor: v.liveMetricVerified ? 'rgba(0, 245, 212, 0.15)' : 'rgba(244, 63, 94, 0.15)',
+                        color: v.liveMetricVerified ? '#00f5d4' : '#f43f5e',
+                        border: `1px solid ${v.liveMetricVerified ? '#00f5d4' : '#f43f5e'}`
+                      }}>
+                        {v.liveMetricVerified ? 'YES TRIGGERED' : 'PENDING / NO'}
+                      </span>
+                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{v.marketId}</span>
+                    </div>
+                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.92rem', fontWeight: 800 }}>{v.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>
+                      <strong style={{ color: '#cbd5e1' }}>Live Condition Status:</strong> {v.currentStatusText}
+                    </p>
+                  </div>
+
+                  <a
+                    href={v.oracleUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      backgroundColor: 'rgba(1, 184, 202, 0.12)',
+                      border: '1px solid rgba(1, 184, 202, 0.3)',
+                      color: '#01b8ca',
+                      padding: '0.4rem 0.85rem',
+                      borderRadius: '8px',
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      textDecoration: 'none'
+                    }}
+                  >
+                    <span>View Spotify Source</span>
+                    <ExternalLink size={12} />
+                  </a>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </main>
 
       {/* Real SOL Onchain Order Slip Modal */}
@@ -958,8 +1285,8 @@ export default function App() {
         <div style={{
           position: 'fixed',
           inset: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          backdropFilter: 'blur(8px)',
+          backgroundColor: 'rgba(10, 15, 29, 0.85)',
+          backdropFilter: 'blur(10px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -967,19 +1294,20 @@ export default function App() {
           zIndex: 50
         }}>
           <div className="glass-panel" style={{
-            maxWidth: '440px',
+            maxWidth: '460px',
             width: '100%',
             borderRadius: '20px',
             padding: '1.5rem',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
-            backgroundColor: '#121622'
+            border: '1px solid rgba(1, 184, 202, 0.35)',
+            backgroundColor: '#0d1b2a',
+            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
               <div>
                 <h3 style={{ margin: '0 0 0.25rem 0', fontSize: '1.1rem', fontWeight: 800 }}>{selectedMarket.title}</h3>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '0.4rem' }}>
                   <LiveCountdownBadge targetIso={selectedMarket.settlement_timestamp} />
-                  <span style={{ fontSize: '0.72rem', color: '#9ca3af' }}>{selectedMarket.settlement_date}</span>
+                  <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>{selectedMarket.settlement_date}</span>
                   {selectedMarket.news_url && (
                     <a
                       href={selectedMarket.news_url}
@@ -990,110 +1318,76 @@ export default function App() {
                         alignItems: 'center',
                         gap: '4px',
                         fontSize: '0.72rem',
-                        color: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        color: '#00f5d4',
+                        backgroundColor: 'rgba(1, 184, 202, 0.1)',
                         padding: '3px 8px',
                         borderRadius: '6px',
                         textDecoration: 'none',
-                        fontWeight: 600,
-                        border: '1px solid rgba(16, 185, 129, 0.25)'
+                        fontWeight: 700,
+                        border: '1px solid rgba(1, 184, 202, 0.25)'
                       }}
                     >
-                      <BarChart3 size={11} color="#10b981" />
-                      <span>{selectedMarket.news_source}: Official Source</span>
-                      <ExternalLink size={10} color="#10b981" />
+                      <span>Chart Standings</span>
+                      <ExternalLink size={10} />
                     </a>
                   )}
                 </div>
-
-                {/* Live Oracle Current Standings */}
-                {selectedMarket.live_status_text && (
-                  <div style={{
-                    fontSize: '0.73rem',
-                    color: '#93c5fd',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                    border: '1px solid rgba(59, 130, 246, 0.2)',
-                    padding: '5px 8px',
-                    borderRadius: '8px',
-                    lineHeight: 1.35,
-                    marginBottom: '0.5rem'
-                  }}>
-                    <strong style={{ color: '#60a5fa' }}>Current Live Standings: </strong>
-                    {selectedMarket.live_status_text}
-                  </div>
-                )}
-
-                {/* How Settlement Works Rule Box */}
-                {selectedMarket.settlement_rules && (
-                  <div style={{
-                    fontSize: '0.7rem',
-                    color: '#d1d5db',
-                    backgroundColor: 'rgba(255, 255, 255, 0.03)',
-                    border: '1px solid rgba(255, 255, 255, 0.07)',
-                    padding: '6px 9px',
-                    borderRadius: '8px',
-                    lineHeight: 1.35
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#10b981', fontWeight: 700, marginBottom: '2px' }}>
-                      <Info size={11} />
-                      <span>How Settlement Works:</span>
-                    </div>
-                    {selectedMarket.settlement_rules}
-                  </div>
-                )}
               </div>
               <button
                 onClick={() => setSelectedMarket(null)}
-                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.25rem', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer' }}
               >
                 ✕
               </button>
             </div>
 
-            {/* YES / NO Selector */}
+            {/* Outcome Selection Buttons */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1.25rem' }}>
               <button
                 onClick={() => setTradeChoice('YES')}
                 style={{
                   padding: '0.75rem',
                   borderRadius: '12px',
-                  border: `2px solid ${tradeChoice === 'YES' ? '#10b981' : 'rgba(255, 255, 255, 0.08)'}`,
-                  backgroundColor: tradeChoice === 'YES' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(255, 255, 255, 0.02)',
-                  color: tradeChoice === 'YES' ? '#10b981' : '#fff',
-                  fontWeight: 800,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer'
+                  border: `2px solid ${tradeChoice === 'YES' ? '#01b8ca' : 'rgba(255, 255, 255, 0.1)'}`,
+                  backgroundColor: tradeChoice === 'YES' ? 'rgba(1, 184, 202, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  textAlign: 'left'
                 }}
               >
-                YES ({(selectedMarket.yes_price * 100).toFixed(0)}¢)
+                <div style={{ fontSize: '0.82rem', fontWeight: 900, color: '#00f5d4' }}>BUY YES</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                  {Math.round(selectedMarket.yes_price * 100)}¢
+                </div>
               </button>
+
               <button
                 onClick={() => setTradeChoice('NO')}
                 style={{
                   padding: '0.75rem',
                   borderRadius: '12px',
-                  border: `2px solid ${tradeChoice === 'NO' ? '#ef4444' : 'rgba(255, 255, 255, 0.08)'}`,
-                  backgroundColor: tradeChoice === 'NO' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.02)',
-                  color: tradeChoice === 'NO' ? '#ef4444' : '#fff',
-                  fontWeight: 800,
-                  fontSize: '0.95rem',
-                  cursor: 'pointer'
+                  border: `2px solid ${tradeChoice === 'NO' ? '#f43f5e' : 'rgba(255, 255, 255, 0.1)'}`,
+                  backgroundColor: tradeChoice === 'NO' ? 'rgba(244, 63, 94, 0.2)' : 'rgba(255, 255, 255, 0.04)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  textAlign: 'left'
                 }}
               >
-                NO ({(selectedMarket.no_price * 100).toFixed(0)}¢)
+                <div style={{ fontSize: '0.82rem', fontWeight: 900, color: '#f43f5e' }}>BUY NO</div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 900, fontFamily: 'monospace' }}>
+                  {Math.round(selectedMarket.no_price * 100)}¢
+                </div>
               </button>
             </div>
 
-            {/* SOL Stake Selection */}
+            {/* SOL Stake Input */}
             <div style={{ marginBottom: '1.25rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '0.78rem', color: '#9ca3af' }}>Stake Amount (SOL)</span>
-                <span style={{ fontSize: '0.78rem', color: '#10b981', fontWeight: 600 }}>
-                  Wallet Balance: {solBalance.toFixed(3)} SOL
-                </span>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.8rem' }}>
+                <span style={{ color: '#94a3b8' }}>Amount to Stake</span>
+                <span style={{ color: '#cbd5e1' }}>Balance: {solBalance} SOL</span>
               </div>
-              <div style={{ display: 'flex', gap: '0.45rem', marginBottom: '0.65rem' }}>
-                {[0.005, 0.02, 0.05, 0.1, 0.25].map((amt) => (
+              <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                {[0.001, 0.005, 0.01, 0.05, 0.1].map((amt) => (
                   <button
                     key={amt}
                     onClick={() => setSolAmount(amt)}
@@ -1101,11 +1395,11 @@ export default function App() {
                       flex: 1,
                       padding: '0.45rem',
                       borderRadius: '8px',
-                      backgroundColor: solAmount === amt ? '#10b981' : 'rgba(255, 255, 255, 0.06)',
+                      backgroundColor: solAmount === amt ? '#01b8ca' : 'rgba(255, 255, 255, 0.06)',
                       border: 'none',
-                      color: solAmount === amt ? '#000' : '#fff',
+                      color: solAmount === amt ? '#0a0f1d' : '#fff',
                       fontSize: '0.76rem',
-                      fontWeight: 700,
+                      fontWeight: 800,
                       cursor: 'pointer'
                     }}
                   >
@@ -1124,7 +1418,7 @@ export default function App() {
                   padding: '0.75rem',
                   borderRadius: '10px',
                   backgroundColor: 'rgba(0, 0, 0, 0.4)',
-                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(1, 184, 202, 0.25)',
                   color: '#fff',
                   fontFamily: 'monospace',
                   fontSize: '1rem',
@@ -1144,14 +1438,14 @@ export default function App() {
               alignItems: 'center'
             }}>
               <div>
-                <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'block' }}>Potential Return</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#10b981', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Potential Return</span>
+                <span style={{ fontSize: '0.98rem', fontWeight: 900, color: '#00f5d4', fontFamily: 'monospace' }}>
                   {(solAmount / (tradeChoice === 'YES' ? selectedMarket.yes_price : selectedMarket.no_price)).toFixed(3)} SOL
                 </span>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <span style={{ fontSize: '0.75rem', color: '#9ca3af', display: 'block' }}>Payout Multiplier</span>
-                <span style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff', fontFamily: 'monospace' }}>
+                <span style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'block' }}>Payout Multiplier</span>
+                <span style={{ fontSize: '0.98rem', fontWeight: 900, color: '#fff', fontFamily: 'monospace' }}>
                   {(1 / (tradeChoice === 'YES' ? selectedMarket.yes_price : selectedMarket.no_price)).toFixed(2)}x
                 </span>
               </div>
@@ -1163,19 +1457,310 @@ export default function App() {
               disabled={isSubmitting}
               style={{
                 width: '100%',
-                backgroundColor: tradeChoice === 'YES' ? '#10b981' : '#ef4444',
-                color: '#fff',
+                backgroundColor: tradeChoice === 'YES' ? '#01b8ca' : '#f43f5e',
+                color: tradeChoice === 'YES' ? '#0a0f1d' : '#fff',
                 padding: '0.85rem',
                 borderRadius: '12px',
                 border: 'none',
-                fontWeight: 800,
+                fontWeight: 900,
                 fontSize: '0.95rem',
                 cursor: 'pointer',
-                opacity: isSubmitting ? 0.7 : 1
+                opacity: isSubmitting ? 0.7 : 1,
+                boxShadow: tradeChoice === 'YES' ? '0 0 20px rgba(1, 184, 202, 0.4)' : '0 0 20px rgba(244, 63, 94, 0.4)'
               }}
             >
               {isSubmitting ? 'Signing on Solana...' : `Confirm on Solana: ${solAmount} SOL`}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* 80% Community Tokenomics Modal */}
+      {showTokenomics && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(10, 15, 29, 0.88)',
+          backdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 70,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#0d1b2a',
+            border: '1px solid rgba(1, 184, 202, 0.35)',
+            borderRadius: '20px',
+            maxWidth: '560px',
+            width: '100%',
+            padding: '1.75rem',
+            position: 'relative',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #01b8ca 0%, #0c78e8 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Sparkles size={20} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900 }}>MusicX Token Distribution</h3>
+                  <span style={{ fontSize: '0.72rem', color: '#00f5d4', fontWeight: 800 }}>80% RESERVED FOR USERS</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowTokenomics(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Tokenomics Highlights */}
+            <div style={{
+              backgroundColor: 'rgba(1, 184, 202, 0.08)',
+              border: '1px solid rgba(1, 184, 202, 0.25)',
+              borderRadius: '12px',
+              padding: '1rem',
+              marginBottom: '1.25rem'
+            }}>
+              <p style={{ margin: 0, fontSize: '0.84rem', color: '#e2e8f0', lineHeight: 1.5 }}>
+                MusicX is built for music fans, not venture capital dumpers. <strong>80% of the entire token supply</strong> is locked for active traders, chart predictors, and early alpha community members.
+              </p>
+            </div>
+
+            {/* Distribution Breakdown Bars */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 800, marginBottom: '4px' }}>
+                  <span style={{ color: '#00f5d4' }}>🎯 40% — Retroactive Early Tester Airdrop</span>
+                  <span style={{ fontFamily: 'monospace' }}>40%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                  <div style={{ width: '40%', height: '100%', backgroundColor: '#00f5d4' }} />
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Highest multipliers allocated to initial users placing test bets and providing feedback.
+                </span>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 800, marginBottom: '4px' }}>
+                  <span style={{ color: '#01b8ca' }}>📈 40% — Ongoing Prediction Volume & Streaks</span>
+                  <span style={{ fontFamily: 'monospace' }}>40%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                  <div style={{ width: '40%', height: '100%', backgroundColor: '#01b8ca' }} />
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Weekly leaderboard rewards, streak multipliers, and liquidity mining on active music markets.
+                </span>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 800, marginBottom: '4px' }}>
+                  <span style={{ color: '#38bdf8' }}>🛠️ 10% — Protocol Ecosystem & Grant Matching</span>
+                  <span style={{ fontFamily: 'monospace' }}>10%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                  <div style={{ width: '10%', height: '100%', backgroundColor: '#38bdf8' }} />
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Open source oracle maintenance, security audits, and hackathon bounties.
+                </span>
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem', fontWeight: 800, marginBottom: '4px' }}>
+                  <span style={{ color: '#cbd5e1' }}>💧 10% — Initial DEX Liquidity Pool Reserve</span>
+                  <span style={{ fontFamily: 'monospace' }}>10%</span>
+                </div>
+                <div style={{ width: '100%', height: '8px', backgroundColor: 'rgba(255, 255, 255, 0.08)', borderRadius: '9999px', overflow: 'hidden' }}>
+                  <div style={{ width: '10%', height: '100%', backgroundColor: '#cbd5e1' }} />
+                </div>
+                <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                  Locked Raydium/Meteora liquidity pairs for fair, slippage-free community trading.
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => { setShowTokenomics(false); setActiveTab('markets'); }}
+              style={{
+                width: '100%',
+                backgroundColor: '#01b8ca',
+                color: '#0a0f1d',
+                border: 'none',
+                padding: '0.75rem',
+                borderRadius: '10px',
+                fontWeight: 900,
+                fontSize: '0.9rem',
+                cursor: 'pointer'
+              }}
+            >
+              Start Staking & Qualify for Airdrop
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Grants & Hackathons Modal */}
+      {showGrants && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(10, 15, 29, 0.88)',
+          backdropFilter: 'blur(12px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 70,
+          padding: '1rem'
+        }}>
+          <div style={{
+            backgroundColor: '#0d1b2a',
+            border: '1px solid rgba(1, 184, 202, 0.35)',
+            borderRadius: '20px',
+            maxWidth: '560px',
+            width: '100%',
+            padding: '1.75rem',
+            position: 'relative',
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, #01b8ca 0%, #0c78e8 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Award size={20} color="#fff" />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '1.2rem', fontWeight: 900 }}>Grants & Hackathon Ready</h3>
+                  <span style={{ fontSize: '0.72rem', color: '#00f5d4', fontWeight: 800 }}>SOLANA RADAR & ECOSYSTEM GRANTS</span>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowGrants(false)}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
+              <div style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '12px',
+                padding: '0.9rem',
+                border: '1px solid rgba(1, 184, 202, 0.2)'
+              }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.9rem', fontWeight: 800, color: '#00f5d4' }}>
+                  🎯 The Thesis: High-Velocity Cultural Prediction Markets
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                  Polymarket proved the power of binary prediction markets for politics. But music is an evergreen 365-day culture cycle where millions of fandoms passionately debate daily Spotify ranks, viral TikTok breakouts, and billboard duels.
+                </p>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '12px',
+                padding: '0.9rem',
+                border: '1px solid rgba(1, 184, 202, 0.2)'
+              }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.9rem', fontWeight: 800, color: '#38bdf8' }}>
+                  ⚡ Why Solana Mainnet?
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                  Music prediction markets require micro-stakes (e.g. 0.001 SOL / ~$0.15) and sub-second confirmation. Solana is the only production blockchain capable of powering consumer micro-transactions without high gas barriers.
+                </p>
+              </div>
+
+              <div style={{
+                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                borderRadius: '12px',
+                padding: '0.9rem',
+                border: '1px solid rgba(1, 184, 202, 0.2)'
+              }}>
+                <h4 style={{ margin: '0 0 0.3rem 0', fontSize: '0.9rem', fontWeight: 800, color: '#f8fafc' }}>
+                  🛡️ Open Source & Non-Custodial Architecture
+                </h4>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                  - Automated Spotify Global daily oracle mirror with transparent API logs.<br />
+                  - Public non-custodial Escrow Vault (<code>32WWuApRT3XyEHYz4EzadNe55m27a4BMWj1BigWyM8zG</code>).<br />
+                  - Automated Solscan verification for all resolved payouts.
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <a
+                href="https://github.com/MusicXFun/musicx-core"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  flex: 1,
+                  backgroundColor: 'rgba(255, 255, 255, 0.08)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  color: '#fff',
+                  padding: '0.75rem',
+                  borderRadius: '10px',
+                  fontWeight: 800,
+                  fontSize: '0.85rem',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Code size={14} /> Open Source GitHub
+              </a>
+              <a
+                href="https://twitter.com/musicxdotfun"
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  flex: 1,
+                  backgroundColor: '#01b8ca',
+                  border: 'none',
+                  color: '#0a0f1d',
+                  padding: '0.75rem',
+                  borderRadius: '10px',
+                  fontWeight: 900,
+                  fontSize: '0.85rem',
+                  textAlign: 'center',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                Contact Team on 𝕏
+              </a>
+            </div>
           </div>
         </div>
       )}
@@ -1188,8 +1773,8 @@ export default function App() {
           left: 0,
           right: 0,
           bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.85)',
-          backdropFilter: 'blur(10px)',
+          backgroundColor: 'rgba(10, 15, 29, 0.88)',
+          backdropFilter: 'blur(12px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1197,14 +1782,14 @@ export default function App() {
           padding: '1rem'
         }}>
           <div style={{
-            backgroundColor: '#121622',
-            border: '1px solid rgba(255, 255, 255, 0.12)',
+            backgroundColor: '#0d1b2a',
+            border: '1px solid rgba(1, 184, 202, 0.35)',
             borderRadius: '20px',
             maxWidth: '520px',
             width: '100%',
             padding: '1.75rem',
             position: 'relative',
-            boxShadow: '0 20px 50px rgba(0, 0, 0, 0.8)'
+            boxShadow: '0 25px 60px rgba(0, 0, 0, 0.85)'
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -1212,18 +1797,18 @@ export default function App() {
                   width: '32px',
                   height: '32px',
                   borderRadius: '10px',
-                  background: 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)',
+                  background: 'linear-gradient(135deg, #01b8ca 0%, #0c78e8 100%)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center'
                 }}>
                   <Disc3 size={18} color="#fff" />
                 </div>
-                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 800 }}>How MusicX Works</h3>
+                <h3 style={{ margin: 0, fontSize: '1.15rem', fontWeight: 900 }}>How MusicX Works</h3>
               </div>
               <button
                 onClick={() => setShowHowItWorks(false)}
-                style={{ background: 'none', border: 'none', color: '#9ca3af', fontSize: '1.25rem', cursor: 'pointer' }}
+                style={{ background: 'none', border: 'none', color: '#94a3b8', fontSize: '1.25rem', cursor: 'pointer' }}
               >
                 ✕
               </button>
@@ -1235,10 +1820,10 @@ export default function App() {
                   width: '28px',
                   height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid #10b981',
-                  color: '#10b981',
-                  fontWeight: 800,
+                  backgroundColor: 'rgba(1, 184, 202, 0.15)',
+                  border: '1px solid #01b8ca',
+                  color: '#00f5d4',
+                  fontWeight: 900,
                   fontSize: '0.8rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -1248,8 +1833,8 @@ export default function App() {
                   1
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Pick a 24H Music Battle</h4>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800 }}>Pick a 24H Music Battle</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.4 }}>
                     Trade daily head-to-head chart duels (e.g. Taylor Swift vs ADÉLA), #1 leaderboard holds, or New Music Friday streaming thresholds.
                   </p>
                 </div>
@@ -1260,10 +1845,10 @@ export default function App() {
                   width: '28px',
                   height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid #10b981',
-                  color: '#10b981',
-                  fontWeight: 800,
+                  backgroundColor: 'rgba(1, 184, 202, 0.15)',
+                  border: '1px solid #01b8ca',
+                  color: '#00f5d4',
+                  fontWeight: 900,
                   fontSize: '0.8rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -1273,9 +1858,9 @@ export default function App() {
                   2
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Stake Real SOL in Non-Custodial Escrow</h4>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
-                    Your funds are locked directly into the public Solana Escrow Vault (<code style={{ color: '#93c5fd' }}>32WW...M8zG</code>). 100% transparent and visible on Solscan with zero platform custody risk.
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800 }}>Stake Real SOL in Non-Custodial Escrow</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.4 }}>
+                    Your funds are locked directly into the public Solana Escrow Vault (<code style={{ color: '#38bdf8' }}>32WW...M8zG</code>). 100% transparent and visible on Solscan with zero platform custody risk.
                   </p>
                 </div>
               </div>
@@ -1285,10 +1870,10 @@ export default function App() {
                   width: '28px',
                   height: '28px',
                   borderRadius: '50%',
-                  backgroundColor: 'rgba(16, 185, 129, 0.15)',
-                  border: '1px solid #10b981',
-                  color: '#10b981',
-                  fontWeight: 800,
+                  backgroundColor: 'rgba(1, 184, 202, 0.15)',
+                  border: '1px solid #01b8ca',
+                  color: '#00f5d4',
+                  fontWeight: 900,
                   fontSize: '0.8rem',
                   display: 'flex',
                   alignItems: 'center',
@@ -1298,9 +1883,9 @@ export default function App() {
                   3
                 </div>
                 <div>
-                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 700 }}>Automated Daily Settlement (10:00 UTC)</h4>
-                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#9ca3af', lineHeight: 1.4 }}>
-                    When Spotify refreshes the official Daily Global Top 50 chart at 10:00 AM UTC, the automated oracle verifies the final rankings. Winners receive automated proportional payouts from the pool.
+                  <h4 style={{ margin: '0 0 0.2rem 0', fontSize: '0.92rem', fontWeight: 800 }}>Automated Daily Settlement (10:00 UTC)</h4>
+                  <p style={{ margin: 0, fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.4 }}>
+                    When Spotify refreshes the official Daily Global chart at 10:00 AM UTC, the automated oracle verifies the final rankings. Winners receive automated proportional payouts from the pool.
                   </p>
                 </div>
               </div>
@@ -1310,12 +1895,12 @@ export default function App() {
               onClick={() => setShowHowItWorks(false)}
               style={{
                 width: '100%',
-                backgroundColor: '#10b981',
-                color: '#000',
+                backgroundColor: '#01b8ca',
+                color: '#0a0f1d',
                 border: 'none',
                 padding: '0.75rem',
                 borderRadius: '10px',
-                fontWeight: 800,
+                fontWeight: 900,
                 fontSize: '0.9rem',
                 cursor: 'pointer'
               }}
@@ -1333,27 +1918,27 @@ export default function App() {
           bottom: '24px',
           left: '50%',
           transform: 'translateX(-50%)',
-          backgroundColor: '#1f2937',
+          backgroundColor: '#0d1b2a',
           color: '#fff',
           padding: '0.75rem 1.25rem',
           borderRadius: '9999px',
           fontSize: '0.85rem',
-          fontWeight: 600,
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.5)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          fontWeight: 700,
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.7)',
+          border: '1px solid rgba(1, 184, 202, 0.4)',
           zIndex: 60,
           display: 'flex',
           alignItems: 'center',
           gap: '8px'
         }}>
-          <CheckCircle2 size={16} color="#10b981" />
+          <CheckCircle2 size={16} color="#00f5d4" />
           <span>{toastMsg.text}</span>
           {toastMsg.link && (
             <a
               href={toastMsg.link}
               target="_blank"
               rel="noreferrer"
-              style={{ color: '#60a5fa', marginLeft: '4px', display: 'flex', alignItems: 'center' }}
+              style={{ color: '#38bdf8', marginLeft: '4px', display: 'flex', alignItems: 'center' }}
             >
               Solscan <ArrowUpRight size={13} />
             </a>
@@ -1369,7 +1954,7 @@ export default function App() {
                 padding: '3px 9px',
                 borderRadius: '6px',
                 fontSize: '0.74rem',
-                fontWeight: 700,
+                fontWeight: 800,
                 textDecoration: 'none',
                 marginLeft: '8px',
                 border: '1px solid rgba(255, 255, 255, 0.3)',
