@@ -364,18 +364,16 @@ export default function App() {
         justifyContent: 'space-between'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-          <div style={{
-            width: '38px',
-            height: '38px',
-            borderRadius: '12px',
-            background: 'linear-gradient(135deg, #10b981 0%, #6366f1 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 0 16px rgba(16, 185, 129, 0.35)'
-          }}>
-            <Disc3 size={22} color="#fff" />
-          </div>
+          <img
+            src="/favicon.svg"
+            alt="MusicX Logo"
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '11px',
+              boxShadow: '0 0 18px rgba(16, 185, 129, 0.4)'
+            }}
+          />
           <div>
             <h1 style={{ fontSize: '1.2rem', fontWeight: 800, letterSpacing: '-0.02em', margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
               Music<span style={{ color: '#10b981' }}>X</span>
