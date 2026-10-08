@@ -1209,6 +1209,25 @@ export default function App() {
               </div>
             </div>
 
+            {/* Spotify 24H Auditing Lag Educational Callout */}
+            <div style={{
+              backgroundColor: 'rgba(56, 189, 248, 0.08)',
+              border: '1px solid rgba(56, 189, 248, 0.25)',
+              borderRadius: '12px',
+              padding: '0.85rem 1.15rem',
+              marginBottom: '1.25rem',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px'
+            }}>
+              <Clock size={18} color="#38bdf8" style={{ marginTop: '2px', flexShrink: 0 }} />
+              <div style={{ fontSize: '0.78rem', color: '#cbd5e1', lineHeight: 1.45 }}>
+                <strong style={{ color: '#38bdf8' }}>Understanding the Spotify 24H Chart Auditing Cycle:</strong><br />
+                Spotify daily charts are audited globally to remove bot streams and duplicates before publication. Consequently, official daily charts are published with a standard <strong>24–36 hour lag</strong> (e.g. Oct 6 data is verified on Oct 7/8).<br />
+                The badges below show <strong>interim live chart standings</strong>. Once Spotify finalizes the target date's chart cut-off, the market transitions to <em>RESOLVED</em> and the Escrow Vault dispatches SOL payouts automatically to winning wallets.
+              </div>
+            </div>
+
             {/* Oracle Verification Standings */}
             <h3 style={{ fontSize: '1rem', fontWeight: 800, marginBottom: '0.85rem', color: '#cbd5e1' }}>
               Current Oracle Standings ({oracleStatusData?.verifications?.length || 0} Markets Monitored)
@@ -1231,23 +1250,36 @@ export default function App() {
                   }}
                 >
                   <div style={{ flex: 1, minWidth: '260px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px', flexWrap: 'wrap' }}>
                       <span style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 800,
-                        padding: '2px 6px',
-                        borderRadius: '4px',
+                        fontSize: '0.68rem',
+                        fontWeight: 900,
+                        padding: '3px 8px',
+                        borderRadius: '6px',
                         backgroundColor: v.liveMetricVerified ? 'rgba(0, 245, 212, 0.15)' : 'rgba(244, 63, 94, 0.15)',
                         color: v.liveMetricVerified ? '#00f5d4' : '#f43f5e',
-                        border: `1px solid ${v.liveMetricVerified ? '#00f5d4' : '#f43f5e'}`
+                        border: `1px solid ${v.liveMetricVerified ? '#00f5d4' : '#f43f5e'}`,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px'
                       }}>
-                        {v.liveMetricVerified ? 'YES TRIGGERED' : 'PENDING / NO'}
+                        <span style={{ width: '6px', height: '6px', borderRadius: '50%', backgroundColor: v.liveMetricVerified ? '#00f5d4' : '#f43f5e' }} />
+                        {v.liveMetricVerified ? 'LIVE: YES IN THE LEAD' : 'LIVE: NO IN THE LEAD'}
                       </span>
-                      <span style={{ fontSize: '0.72rem', color: '#64748b' }}>{v.marketId}</span>
+                      <span style={{
+                        fontSize: '0.65rem',
+                        color: '#94a3b8',
+                        backgroundColor: 'rgba(255, 255, 255, 0.05)',
+                        padding: '2px 6px',
+                        borderRadius: '4px'
+                      }}>
+                        Source Snapshot: Oct 6 Chart
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: '#64748b' }}>{v.marketId}</span>
                     </div>
-                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.92rem', fontWeight: 800 }}>{v.title}</h4>
-                    <p style={{ margin: 0, fontSize: '0.75rem', color: '#94a3b8' }}>
-                      <strong style={{ color: '#cbd5e1' }}>Live Condition Status:</strong> {v.currentStatusText}
+                    <h4 style={{ margin: '0 0 0.35rem 0', fontSize: '0.94rem', fontWeight: 800 }}>{v.title}</h4>
+                    <p style={{ margin: 0, fontSize: '0.76rem', color: '#94a3b8' }}>
+                      <strong style={{ color: '#cbd5e1' }}>Live Chart Condition:</strong> {v.currentStatusText}
                     </p>
                   </div>
 
@@ -1262,10 +1294,10 @@ export default function App() {
                       backgroundColor: 'rgba(1, 184, 202, 0.12)',
                       border: '1px solid rgba(1, 184, 202, 0.3)',
                       color: '#01b8ca',
-                      padding: '0.4rem 0.85rem',
+                      padding: '0.45rem 0.85rem',
                       borderRadius: '8px',
                       fontSize: '0.74rem',
-                      fontWeight: 700,
+                      fontWeight: 800,
                       textDecoration: 'none'
                     }}
                   >
